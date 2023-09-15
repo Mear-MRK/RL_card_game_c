@@ -1,0 +1,18 @@
+# excutables
+*.out
+*.exe
+
+# object files and libraries
+*.o
+*.a
+*.so
+*.lib
+*.dll
+
+# data
+*.dat
+*.bin
+
+# VS code
+.vscode
+

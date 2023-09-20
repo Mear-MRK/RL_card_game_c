@@ -4,6 +4,7 @@
 
 typedef struct table_struct
 {
+    int trick_id;
     int leader;
     suit_t led;
     int nbr_cards;

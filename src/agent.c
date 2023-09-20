@@ -23,7 +23,7 @@ void agent_destruct(agent_t *agent)
     agent->intern = NULL;
 }
 
-void agent_init(agent_t *agent, const state_t *state, const void *param)
+void agent_init(agent_t *agent, state_t *state, const void *param)
 {
     assert(agent);
     assert(state);
@@ -43,9 +43,16 @@ card_t agent_act(agent_t *agent)
     return agent->class.act(agent);
 }
 
-void agent_gain(agent_t *agent, float reward)
+void agent_trick_gain(agent_t *agent, float reward)
 {
     assert(agent);
     assert(!isnan(reward));
-    agent->class.gain(agent, reward);
+    agent->class.trick_gain(agent, reward);
+}
+
+void agent_round_gain(agent_t *agent, float reward)
+{
+    assert(agent);
+    assert(!isnan(reward));
+    agent->class.round_gain(agent, reward);
 }

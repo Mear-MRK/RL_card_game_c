@@ -5,12 +5,9 @@ bool is_act_legal(const hand_t *hand, const table_t *table, const card_t *c)
     if (!card_is_valid(c) || !hand_card_is_in(hand, c))
         return false;
 
-    if (table->led != NON_SUT && c->sut != table->led)
-    {
-        for (rank_t r = two; r <= Ace; r++)
-            if (hand->n_card[table->led][r])
-                return false;
-    }
+    if (table->led != NON_SUT && c->sut != table->led && hand->len_sut[table->led])
+        return false;
+
     return true;
 }
 

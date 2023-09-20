@@ -32,6 +32,7 @@ deck_t *deck_construct(deck_t *deck, int nbr_cards)
 	{
 		deck->card_arr[i].sut = i / N_RNK % N_SUT;
 		deck->card_arr[i].rnk = i % N_RNK;
+		deck->card_arr[i].cid = i % N_CRD;
 	}
 
 	return deck;

@@ -21,10 +21,10 @@ OPT_CFLAGS = -flto -O3
 
 RLS_CFLAGS = -DNDEBUG $(COM_CFLAGS) $(OPT_CFLAGS)
 RLS_LDFLAGS = $(OPT_CFLAGS) -L$(LIBPATH) $(EXT_LIB_FLAGS)
-RLS_LD_LIBS = -lann -lmkl_rt -lm
+RLS_LD_LIBS = -lann -llin_alg_flt32 -lmkl_rt -lm
 DBG_CFLAGS = -DDEBUG -g $(COM_CFLAGS) 
 DBG_LDFLAGS = -L$(LIBPATH) $(EXT_LIB_FLAGS) -g
-DBG_LD_LIBS = -lann_dbg -lmkl_rt -lm
+DBG_LD_LIBS = -lann_dbg -llin_alg_flt32_dbg -lmkl_rt -lm
 
 
 CFILES = $(filter-out $(SRCPATH)/main%.c, $(wildcard $(SRCPATH)/*.c))
@@ -70,15 +70,15 @@ $(OBJPATH)/%_dbg.o: $(SRCPATH)/%.c $(INCPATH)/%.h
 
 $(BINPATH)/test.out: $(OBJPATH)/main_test_dbg.o $(DBG_OBJS) $(TST_OBJS)
 	@mkdir -p $(BINPATH)
-	$(LD) $(DBG_LDFLAGS) -o $@ $^
+	$(LD) $(DBG_LDFLAGS) -o $@ $^ $(DBG_LD_LIBS)
 
 $(BINPATH)/main.out: $(OBJPATH)/main.o $(RLS_OBJS)
 	@mkdir -p $(BINPATH)
-	$(LD) $(RLS_LDFLAGS) -o $@ $^
+	$(LD) $(RLS_LDFLAGS) -o $@ $^ $(RLS_LD_LIBS)
 
 $(BINPATH)/main_dbg.out: $(OBJPATH)/main_dbg.o $(DBG_OBJS)
 	@mkdir -p $(BINPATH)
-	$(LD) $(DBG_LDFLAGS) -o $@ $^
+	$(LD) $(DBG_LDFLAGS) -o $@ $^ $(DBG_LD_LIBS)
 
 
 release: $(RLS_OBJS)

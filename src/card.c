@@ -9,17 +9,38 @@ const char SUT_CHR[] = {'S', 'H', 'C', 'D', '-'};
 
 bool card_is_equal(const card_t *c1, const card_t *c2)
 {
-	return memcmp(c1, c2, sizeof(card_t)) == 0;
+	return c1->cid == c2->cid;
 }
 
 bool card_is_none(const card_t *card)
 {
-	return card->rnk == NON_RNK && card->sut == NON_SUT;
+	return card->cid == NON_CID;
 }
 
 bool card_is_valid(const card_t *card)
 {
-	return card->sut >= 0 && card->rnk >= 0 && card->sut < N_SUT && card->rnk < N_RNK;
+	return card->sut >= 0 && card->rnk >= 0 && card->sut < N_SUT && card->rnk < N_RNK && card->cid >= 0 && card->cid < N_CRD;
+}
+
+card_t *card_from_cid(card_t *card, cid_t id)
+{
+	assert(card);
+	assert(id >= 0 && id < N_CRD || id == NON_CID);
+	card->sut = id / N_RNK;
+	card->rnk = id % N_RNK;
+	card->cid = id;
+	return card;
+}
+
+card_t *card_from_sut_rnk(card_t *card, suit_t s, rank_t r)
+{
+	assert(card);
+	assert(s >= 0 && s < N_SUT);
+	assert(r >= 0 && r < N_RNK);
+	card->sut = s;
+	card->rnk = r;
+	card->cid = s * N_RNK + r;
+    return card;
 }
 
 char *card_to_str(const card_t *card, char *str)
@@ -46,6 +67,7 @@ card_t card_from_str(const char *c_str)
 	card_t c;
 	c.sut = suit_from_str(c_str + 1);
 	c.rnk = rank_from_str(c_str);
+	c.cid = c.sut * N_RNK + c.rnk;
 	return c;
 }
 

@@ -1,25 +1,13 @@
 #include "table.h"
 
 #include <assert.h>
-#include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-
-// table_t *table_construct(table_t *table, int nbr_players)
-// {
-//     assert(table);
-//     assert(nbr_players > 0);
-//     table->nbr_cards = 0;
-//     table->leader = -1;
-//     table->card = (card_t *)calloc(nbr_players, sizeof(card_t));
-//     assert(table->card);
-//     return table;
-// }
 
 table_t *table_init(table_t *table, card_t card_arr[], int nbr_players)
 {
     assert(table);
     assert(nbr_players > 0);
+    table->trick_id = 0;
     table->leader = -1;
     table->led = NON_SUT;
     table->nbr_players = nbr_players;
@@ -28,14 +16,6 @@ table_t *table_init(table_t *table, card_t card_arr[], int nbr_players)
     return table;
 }
 
-// void table_destruct(table_t *table)
-// {
-//     assert(table);
-//     free(table->card);
-//     table->card = NULL;
-//     table->leader = -1;
-//     table->nbr_cards = 0;
-// }
 table_t *table_clear(table_t *table)
 {
     assert(table);
@@ -57,7 +37,7 @@ table_t *table_put(table_t *table, int player, const card_t *card)
     table->card_arr[player] = *card;
     if (table->nbr_cards == 0)
     {
-        table->leader = player;
+        assert(table->leader == player);
         table->led = card->sut;
     }
     table->nbr_cards++;

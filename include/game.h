@@ -9,11 +9,11 @@
 #define N_PLY 4
 #define N_TEAM 2
 #define N_PLPT 2
-#define N_DELT 5
+#define N_DELT 13
 #define N_INIT_DELT 5
 
-#define N_RND 2
-#define N_TRK 3
+#define N_RND 13
+#define N_TRK 13
 
 
 bool is_act_legal(const hand_t *hand, const table_t *table, const card_t *c);

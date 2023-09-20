@@ -7,10 +7,10 @@
 typedef struct state_struct
 {
 	int play_ord;
-	suit_t *trump_p;
-	hand_t *hand_p;
-	table_t *table_p;
-	hand_t *played_p;
+	suit_t *p_trump;
+	hand_t *p_hand;
+	table_t *p_table;
+	hand_t *p_played;
 } state_t;
 
 #endif /* STATE_H_ */

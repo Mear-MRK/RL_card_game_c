@@ -21,7 +21,8 @@ typedef struct agent_class_struct
 	init_func init;
 	call_trump_func call_trump;
 	act_func act;
-	gain_func gain;
+	gain_func trick_gain;
+	gain_func round_gain;
 } agent_class;
 
 struct agent_struct
@@ -34,9 +35,10 @@ struct agent_struct
 
 agent_t *agent_construct(agent_t *agent, int player_id, const void *param);
 void agent_destruct(agent_t *agent);
-void agent_init(agent_t *agent, const state_t *state, const void *param);
+void agent_init(agent_t *agent, state_t *state, const void *param);
 suit_t agent_call_trump(agent_t *agent);
 card_t agent_act(agent_t *agent);
-void agent_gain(agent_t *agent, float reward);
+void agent_trick_gain(agent_t *agent, float reward);
+void agent_round_gain(agent_t *agent, float reward);
 
 #endif /* AGENT_H_ */

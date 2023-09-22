@@ -24,9 +24,6 @@ static void destruct(agent_t *agent)
     agent->intern = NULL;
 }
 
-static void init(agent_t *agent, const void *param)
-{
-}
 
 static suit_t call_trump(agent_t *agent)
 {
@@ -60,18 +57,8 @@ static card_t act(agent_t *agent)
     return c;
 }
 
-static void trick_gain(agent_t *agent, float reward)
-{
-    // if (reward)
-    //     printf("Agent %d team won the trick.\n", agent->id);
-    // else
-    //     printf("Agetn %d team lost the trick.\n", agent->id);
-}
-
-static void round_gain(agent_t *agent, float reward)
-{
-    // printf("Agent %d round reward: %g\n", agent->id, reward);
-}
-
 const agent_class agent_rnd =
-    {.construct = construct, .destruct = destruct, .init = init, .call_trump = call_trump, .act = act, .trick_gain = trick_gain, .round_gain = round_gain};
+    {.construct = construct, .destruct = destruct, 
+    .init_episode = NULL, .init_round = NULL,
+     .call_trump = call_trump, .act = act, .trick_gain = NULL, .round_gain = NULL,
+     .finalize_episode = NULL};

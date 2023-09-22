@@ -12,7 +12,8 @@ void test(void)
 
 int main()
 {
-	log_set_level(debug);
+	log_set_level(LOG_DBG);
+	log_msg(LOG_DBG, "1 > -max_f: %d\n", 1.0f > -__FLT_MAX__ );
 	test();
 	return 0;
 }

@@ -23,12 +23,20 @@ void agent_destruct(agent_t *agent)
     agent->intern = NULL;
 }
 
-void agent_init(agent_t *agent, state_t *state, const void *param)
+void agent_init_episode(agent_t *agent, state_t *state, const void *param)
 {
     assert(agent);
     assert(state);
     agent->state = state;
-    agent->class.init(agent, param);
+    if (agent->class.init_episode)
+        agent->class.init_episode(agent, param);
+}
+
+void agent_init_round(agent_t *agent, const void *param)
+{
+    assert(agent);
+    if (agent->class.init_round)
+        agent->class.init_round(agent, param);
 }
 
 suit_t agent_call_trump(agent_t *agent)
@@ -47,12 +55,21 @@ void agent_trick_gain(agent_t *agent, float reward)
 {
     assert(agent);
     assert(!isnan(reward));
-    agent->class.trick_gain(agent, reward);
+    if(agent->class.trick_gain)
+        agent->class.trick_gain(agent, reward);
 }
 
 void agent_round_gain(agent_t *agent, float reward)
 {
     assert(agent);
     assert(!isnan(reward));
-    agent->class.round_gain(agent, reward);
+    if(agent->class.round_gain)
+        agent->class.round_gain(agent, reward);
+}
+
+void agent_finalize(agent_t *agent, const void *param)
+{
+    assert(agent);
+    if (agent->class.finalize_episode)
+        agent->class.finalize_episode(agent, param);
 }

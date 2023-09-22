@@ -56,7 +56,7 @@ static uint64_t rob_jenk_mix(uint64_t a, uint16_t b, uint64_t c)
 uint64_t gen_seed(void)
 {
     uint64_t a = clock(), b = time(NULL), c = GETPID();
-    log_msg(debug, "time(): %lu, clock(): %ld, CLOCKS_PER_SEC: %ld, pid: %lu\n",
+    log_msg(LOG_DBG, "time(): %lu, clock(): %ld, CLOCKS_PER_SEC: %ld, pid: %lu\n",
             b, a, CLOCKS_PER_SEC, c);
 
     pcg_seed(a ^ b ^ c);
@@ -69,6 +69,6 @@ uint64_t gen_seed(void)
     getrandom((void *)&res, sizeof(res), GRND_RANDOM);
 #endif
     res ^= rob_jenk_mix(a, b, c);
-    log_msg(debug, "Random SEED: %lu\n", res);
+    log_msg(LOG_DBG, "Random SEED: %lu\n", res);
     return res;
 }

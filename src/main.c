@@ -21,14 +21,23 @@
 int main(int argc, char **argv)
 {
 
-    log_set_level(warning);
-
+    ag_RL_construct_param RL_cnst_param;
+    ag_RL_cns_param_reset(&RL_cnst_param);
+    log_type log_level = LOG_WRN;
     int nbr_games = 1000;
-    if (argc > 1)
+
+    switch (argc)
     {
+    case 4:
+        RL_cnst_param.init_episode_counter = atoi(argv[3]);
+    case 3:
+        log_level = atoi(argv[2]);
+        log_set_level(log_level);
+    case 2:
         nbr_games = atoi(argv[1]);
         assert(nbr_games > 0);
     }
+
     pcg_seed(gen_seed());
 
     hand_t ar_hand[N_PLY];
@@ -58,8 +67,16 @@ int main(int argc, char **argv)
         ar_state[pl].p_table = &table;
         ar_state[pl].p_trump = &trump;
 
-        agent[pl].class = (pl % N_PLPT == 1) ? agent_RL : agent_rnd; // agent_interact;
-        agent_construct(agent + pl, pl, NULL);
+        // if (pl % N_PLPT == 0)
+        // {
+            agent[pl].class = agent_RL;
+            agent_construct(agent + pl, pl, &RL_cnst_param);
+        // }
+        // else
+        // {
+        //     agent[pl].class = agent_rnd;
+        //     agent_construct(agent + pl, pl, NULL);
+        // }
     }
 
     deck_t deck;
@@ -69,45 +86,50 @@ int main(int argc, char **argv)
     int scores[N_TEAM] = {0};
     for (int game = 0; game < nbr_games; game++)
     {
-        log_msg(info, "Game %d ####\n", game);
+        log_msg(LOG_INF, "Game %d ####\n", game);
         int game_scores[N_TEAM];
         memset(game_scores, 0, N_TEAM * sizeof(int));
         int round_leader = pcg_uint32() % N_PLY;
+        for (int i = 0; i < N_PLY; i++)
+        {
+            int pl = (i + round_leader) % N_PLY;
+            agent_init_episode(agent + pl, ar_state + pl, NULL);
+        }
         for (int round = 0; round < N_RND; round++)
         {
-            log_msg(info, "Game %d Round %d ====\n", game, round);
+            log_msg(LOG_INF, "Game %d Round %d ====\n", game, round);
             deck_shuffle(&deck, pcg_uint32);
             // Initial 5-cards
             for (int pl = 0; pl < N_PLY; pl++)
             {
                 hand_clear(ar_hand + pl);
                 hand_add_card_arr(ar_hand + pl, deck.card_arr + pl * N_DELT, N_INIT_DELT);
-                log_msg(debug, "Game %d Round %d Player %d init hand:\n%s\n", game, round, pl,
+                log_msg(LOG_DBG, "Game %d Round %d Player %d init hand:\n%s\n", game, round, pl,
                         hand_to_str(ar_hand + pl, buff_str));
             }
 
             for (int i = 0; i < N_PLY; i++)
             {
                 int pl = (i + round_leader) % N_PLY;
-                agent_init(agent + pl, ar_state + pl, NULL);
+                agent_init_round(agent + pl, NULL);
             }
-            log_msg(debug, "Game %d Round %d Lead player %d\n", game, round, round_leader);
+            log_msg(LOG_DBG, "Game %d Round %d Lead player %d\n", game, round, round_leader);
             trump = agent_call_trump(agent + round_leader);
             assert(trump >= 0 && trump < N_SUT);
             for (int pl = 0; pl < N_PLY; pl++)
             {
                 hand_add_card_arr(ar_hand + pl, deck.card_arr + pl * N_DELT + N_INIT_DELT, N_DELT - N_INIT_DELT);
-                log_msg(debug, "Game %d Round %d Player %d init hand:\n%s\n", game, round, pl,
+                log_msg(LOG_DBG, "Game %d Round %d Player %d init hand:\n%s\n", game, round, pl,
                         hand_to_str(ar_hand + pl, buff_str));
             }
-            log_msg(debug, "Game %d Round %d Trump: %d\n", game, round, trump);
-
+            log_msg(LOG_DBG, "Game %d Round %d Trump: %d\n", game, round, trump);
+            hand_clear(&played);
             int round_scores[N_TEAM];
             memset(round_scores, 0, N_TEAM * sizeof(int));
             int leader = round_leader;
             for (int trick = 0; trick < N_TRK; trick++)
             {
-                log_msg(info, "Game %d Round %d Trick %d ----\n", game, round, trick);
+                log_msg(LOG_INF, "Game %d Round %d Trick %d ----\n", game, round, trick);
                 table_clear(&table);
                 table.trick_id = trick;
                 table.leader = leader;
@@ -119,27 +141,27 @@ int main(int argc, char **argv)
 #ifdef DEBUG
                     if (!is_act_legal(ar_state[pl].p_hand, &table, &c))
                     {
-                        log_msg(error, "Game %d Round %d Trick %d Player %d act is illegal: %s\n",
+                        log_msg(LOG_ERR, "Game %d Round %d Trick %d Player %d act is illegal: %s\n",
                                 game, round, trick, pl, card_to_str(&c, buff_str));
-                        log_msg(error, "led %c, hand:\n%s\n", SUT_CHR[table.led],
+                        log_msg(LOG_ERR, "led %c, hand:\n%s\n", SUT_CHR[table.led],
                                 hand_to_str(agent[pl].state->p_hand, buff_str));
                         exit(-1);
                     }
 #endif
                     table_put(&table, pl, &c);
                     hand_remove(ar_state[pl].p_hand, &c);
-                    log_msg(debug, "Game %d Round %d Trick %d Player %d played %s\n", game, round, trick, pl,
+                    log_msg(LOG_DBG, "Game %d Round %d Trick %d Player %d played %s\n", game, round, trick, pl,
                             card_to_str(&c, buff_str));
-                    log_msg(debug, "Game %d Round %d Trick %d Player %d hand:\n%s\n", game, round, trick, pl,
+                    log_msg(LOG_DBG, "Game %d Round %d Trick %d Player %d hand:\n%s\n", game, round, trick, pl,
                             hand_to_str(ar_hand + pl, buff_str));
-                    log_msg(debug, "Game %d Round %d Trick %d Table: %s\n", game, round, trick,
+                    log_msg(LOG_DBG, "Game %d Round %d Trick %d Table: %s\n", game, round, trick,
                             table_to_str(&table, buff_str));
                 }
                 hand_add_card_arr(&played, table.card_arr, table.nbr_players);
                 leader = eval_table(&table, trump);
                 int trick_taker_team = leader % N_PLPT;
                 round_scores[trick_taker_team]++;
-                log_msg(info, "Game %d Round %d Trick %d Trick taker team: %d\n", game, round, trick,
+                log_msg(LOG_INF, "Game %d Round %d Trick %d Trick taker team: %d\n", game, round, trick,
                         trick_taker_team);
                 for (int pl = 0; pl < N_PLY; pl++)
                 {
@@ -155,7 +177,7 @@ int main(int argc, char **argv)
                     round_winner_score = round_scores[t];
                     round_winner_team = t;
                 }
-            log_msg(info, "Game %d Round %d winner team: %d\n", game, round, round_winner_team);
+            log_msg(LOG_INF, "Game %d Round %d winner team: %d\n", game, round, round_winner_team);
             for (int pl = 0; pl < N_PLY; pl++)
             {
                 int t = pl % N_PLPT;
@@ -174,12 +196,14 @@ int main(int argc, char **argv)
                 winner_team = t;
             }
         scores[winner_team]++;
-        log_msg(info, "Game %d winner team: %d\n", game, winner_team);
+        log_msg(LOG_INF, "Game %d winner team: %d\n", game, winner_team);
+        for (int pl = 0; pl < N_PLY; pl++)
+            agent_finalize(agent + pl, NULL);
     } // game
 
     for (int t = 0; t < N_TEAM; t++)
     {
-        log_msg(info, "Team %d score: %d\n", t, scores[t]);
+        log_msg(LOG_INF, "Team %d score: %d\n", t, scores[t]);
         printf("Team %d score: %d\n", t, scores[t]);
     }
 

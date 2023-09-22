@@ -10,6 +10,7 @@
 typedef struct ag_inter_intern_struct
 {
     int round_score;
+    int game_score;
 } ag_inter_intern;
 
 static agent_t *construct(agent_t *agent, const void *param)
@@ -27,7 +28,12 @@ static void destruct(agent_t *agent)
     agent->id = -1;
 }
 
-static void init(agent_t *agent, const void *param)
+static void init_episode(agent_t *agent, const void *param)
+{
+    ((ag_inter_intern *)agent->intern)->game_score = 0;
+}
+
+static void init_round(agent_t *agent, const void *param)
 {
     ((ag_inter_intern *)agent->intern)->round_score = 0;
 }
@@ -107,8 +113,15 @@ static void trick_gain(agent_t *agent, float reward)
 static void round_gain(agent_t *agent, float reward)
 {
     char tbl_str[64];
-    assert(((ag_inter_intern *)(agent->intern))->round_score == (int)reward);
+    ag_inter_intern *intern = (ag_inter_intern *)(agent->intern);
+    assert(intern->round_score == (int)reward);
     printf("Player %d, your team score at the end of this round: %g.\n", agent->id, reward);
+    if (intern->round_score > N_RNK / 2)
+        intern->game_score++;
 }
 
-const agent_class agent_interact = {.construct = construct, .destruct = destruct, .init = init, .call_trump = call_trump, .act = act, .trick_gain = trick_gain, .round_gain = round_gain};
+const agent_class agent_interact = 
+{.construct = construct, .destruct = destruct, 
+.init_episode = init_episode, .init_round = init_round, 
+.call_trump = call_trump, .act = act, 
+.trick_gain = trick_gain, .round_gain = round_gain, .finalize_episode = NULL};

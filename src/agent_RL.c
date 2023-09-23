@@ -29,10 +29,11 @@ typedef struct ag_RL_intern_struct
     bool train;
     int train_epochs;
     bool train_shuffle;
-    float eps; // exploration prob.
+    float eps;       // exploration prob.
     unsigned episode_counter;
-    float delta; // dilation coef.
-    float alpha; // propertional to learning rate
+    int eps_offset;  // counter offset
+    float eps_delta; // dilation coef.
+    float alpha;     // propertional to learning rate
     char file_path[512];
 } ag_RL_intern;
 
@@ -60,7 +61,7 @@ static int save_RL_agent(const agent_t *agent, const char *file_path)
     const ag_RL_intern *intern = (const ag_RL_intern *)agent->intern;
     size_t size = 0;
     size += sizeof(intern->episode_counter);
-    size += sizeof(intern->delta);
+    size += sizeof(intern->eps_delta);
     size += nn_model_serial_size(&intern->rl_calltrump.mdl);
     size += nn_model_serial_size(&intern->rl_distinct.mdl);
     size += nn_model_serial_size(&intern->rl_trumpleads.mdl);
@@ -75,7 +76,7 @@ static int save_RL_agent(const agent_t *agent, const char *file_path)
     uint8_t *init_bytes = bytes;
     bytes = wrt2byt(&size, sizeof(size_t), bytes);
     bytes = wrt2byt(&intern->episode_counter, sizeof(intern->episode_counter), bytes);
-    bytes = wrt2byt(&intern->delta, sizeof(intern->delta), bytes);
+    bytes = wrt2byt(&intern->eps_delta, sizeof(intern->eps_delta), bytes);
     bytes = nn_model_serialize(&intern->rl_calltrump.mdl, bytes);
     bytes = nn_model_serialize(&intern->rl_distinct.mdl, bytes);
     bytes = nn_model_serialize(&intern->rl_trumpleads.mdl, bytes);
@@ -136,7 +137,7 @@ static int load_RL_agent(agent_t *agent, const char *file_path)
     }
     fclose(file);
     bytes = rd_byt(&intern->episode_counter, sizeof(intern->episode_counter), bytes);
-    bytes = rd_byt(&intern->delta, sizeof(intern->delta), bytes);
+    bytes = rd_byt(&intern->eps_delta, sizeof(intern->eps_delta), bytes);
     bytes = nn_model_deserialize(&intern->rl_calltrump.mdl, bytes);
     bytes = nn_model_deserialize(&intern->rl_distinct.mdl, bytes);
     bytes = nn_model_deserialize(&intern->rl_trumpleads.mdl, bytes);
@@ -175,7 +176,7 @@ static void construct_nn_model(nn_model_t *model, int inp_sz, int nbr_hid_layers
 
 static inline FLT_TYP fill_func(void)
 {
-    return 0; // 2 * pcg_flt() - 1;
+    return 0.1 * (pcg_flt() - 0.5);
 }
 
 static void construct_RL(RL_t *rl, IND_TYP inp_sz, int max_nbr_smpl)
@@ -208,7 +209,7 @@ static agent_t *constructor(agent_t *agent, const void *param)
     ag_RL_intern *intern = (ag_RL_intern *)agent->intern;
     const ag_RL_construct_param *inp_param = (const ag_RL_construct_param *)param;
 
-    int nbr_smpl_rounds = 3;
+    int nbr_smpl_rounds = 5;
     int inp_sz;
     inp_sz = N_CRD + N_SUT; // stat: hand, act: sut
     construct_RL(&intern->rl_calltrump, inp_sz, nbr_smpl_rounds);
@@ -221,42 +222,45 @@ static agent_t *constructor(agent_t *agent, const void *param)
 
     intern->train = true;
     intern->train_shuffle = true;
-    intern->train_epochs = 2;
+    intern->train_epochs = 10;
     intern->alpha = 0.001;
+    int nbr_hid_layers = 1;
+    nn_activ_t activ = nn_activ_RELU;
+    intern->episode_counter = 0;
+    intern->eps_offset = 0;
+    intern->eps_delta = 1000;
     intern->file_path[0] = '\0';
     sprintf(intern->file_path, "RL_ag%d.dat", agent->id);
+
+    if (inp_param && inp_param->RL_ag_filepath && strlen(inp_param->RL_ag_filepath) != 0)
+        strcpy(intern->file_path, inp_param->RL_ag_filepath);
+    int load_err = load_RL_agent(agent, intern->file_path);
     if (inp_param)
     {
-        if (inp_param->RL_ag_filepath && strlen(inp_param->RL_ag_filepath) != 0)
-            strcpy(intern->file_path, inp_param->RL_ag_filepath);
         if (inp_param->train >= 0)
             intern->train = (bool)inp_param->train;
         if (inp_param->alpha > 0)
             intern->alpha = inp_param->alpha;
+        if (inp_param->eps_delta > 0)
+            intern->eps_delta = inp_param->eps_delta;
+        if (inp_param->eps_offset != INT32_MAX)
+            intern->eps_offset = inp_param->eps_offset;
+        if (inp_param->init_eps > 0)
+        {
+            intern->eps_offset =
+                (int)(intern->episode_counter + intern->eps_delta * (1 - 1 / inp_param->init_eps));
+        }
     }
-
-    int load_err = load_RL_agent(agent, intern->file_path);
     if (!load_err)
     {
-        if (inp_param)
-        {
-            if (inp_param->init_episode_counter >= 0)
-                intern->episode_counter = (unsigned)inp_param->init_episode_counter;
-            if (inp_param->delta > 0)
-                intern->delta = inp_param->delta;
-        }
-        log_msg(LOG_INF, "RL AG %d: episode_counter: %u\n", agent->id, intern->episode_counter);
+        log_msg(LOG_INF, "RL AG %d: loaded episode_counter: %u\n", agent->id, intern->episode_counter);
         return agent;
     }
 
-    intern->episode_counter = 0;
-    intern->delta = 100;
-    int nbr_hid_layers = 2;
-    nn_activ_t activ = nn_activ_SIGMOID;
     if (inp_param)
     {
-        if (inp_param->delta > 0)
-            intern->delta = inp_param->delta;
+        if (inp_param->eps_delta > 0)
+            intern->eps_delta = inp_param->eps_delta;
         if (inp_param->nbr_hid_lays >= 0)
             nbr_hid_layers = inp_param->nbr_hid_lays;
         if (inp_param->en_act > ACTIV_NON && inp_param->en_act < ACTIV_UP_NON)
@@ -285,9 +289,9 @@ static void destructor(agent_t *agent)
     assert(agent);
     ag_RL_intern *intern = (ag_RL_intern *)agent->intern;
 
-    if (intern->file_path && strlen(intern->file_path) != 0)
+    if (intern->train && intern->file_path && strlen(intern->file_path) != 0)
     {
-        int save_err = save_RL_agent(agent, intern->file_path);
+        save_RL_agent(agent, intern->file_path);
     }
 
     destruct_RL(&intern->rl_calltrump);
@@ -370,7 +374,6 @@ static float *stat_into_inp_arr(const state_t *state, const suit_t sut_ord[N_SUT
 
 static float *act_into_inp_arr(const card_t *a, const suit_t sut_ord[N_SUT], float *arr)
 {
-
     assert(arr);
     assert(card_is_valid(a));
     memset(arr, 0, N_CRD * sizeof(float));
@@ -379,11 +382,18 @@ static float *act_into_inp_arr(const card_t *a, const suit_t sut_ord[N_SUT], flo
     return arr + N_CRD;
 }
 
+static float calc_eps(unsigned counter, float delta, float offset)
+{
+    if (offset >= counter)
+        return 1;
+    return 1. / (1. + (counter - offset) / delta);
+}
+
 static void init_episode(agent_t *agent, const void *param)
 {
     assert(agent);
     ag_RL_intern *intern = (ag_RL_intern *)agent->intern;
-    intern->eps = 1. / (1. + intern->episode_counter / intern->delta);
+    intern->eps = calc_eps(intern->episode_counter, intern->eps_delta, intern->eps_offset);
     log_msg(LOG_DBG, "Player %d, episode counter %d eps %g\n", agent->id, intern->episode_counter, intern->eps);
 }
 
@@ -394,7 +404,7 @@ static suit_t call_trump(agent_t *agent)
 
     RL_t *rl = &intern->rl_calltrump;
 
-    float *stat_act = mat_at(&rl->sta, rl->i_end++, 0);
+    float *stat_act = mat_at(&rl->sta, rl->i_end, 0);
     float *arr = calltrump_stat_into_inp_arr(agent->state, stat_act);
 
     if (pcg_flt() < intern->eps)
@@ -410,9 +420,10 @@ static suit_t call_trump(agent_t *agent)
     float v = 0;
     vec_init_prealloc(&inp_v, stat_act, rl->sta.d2);
     vec_init_prealloc(&out_v, &v, 1);
+#ifdef DEBUG
     char str_buff[4096] = {0};
     char bf[64] = {0};
-
+#endif
     for (suit_t a = 0; a < N_SUT; a++)
     {
         calltrump_act_into_inp_arr(a, arr);
@@ -422,12 +433,19 @@ static suit_t call_trump(agent_t *agent)
             s_m = a;
             v_m = v;
         }
+#ifdef DEBUG
         sprintf(bf, "%c,%g  ", SUT_CHR[a], v);
         strcat(str_buff, bf);
+#endif
     }
+#ifdef DEBUG
     log_msg(LOG_DBG, "Trump call, %s\n", str_buff);
-    calltrump_act_into_inp_arr(s_m, arr);
-    // log_msg(debug, "Trump call, stat_act[%d]:\n%s\n", rl->i_end - 1, vec_to_str(&inp_v, str_buff));
+#endif
+    if (intern->train)
+    {
+        calltrump_act_into_inp_arr(s_m, arr);
+        rl->i_end++;
+    }
     return s_m;
 }
 
@@ -459,7 +477,7 @@ static card_t act(agent_t *agent)
         rl = &intern->rl_distinct;
     }
 
-    float *stat_act = mat_at(&rl->sta, rl->i_end++, 0);
+    float *stat_act = mat_at(&rl->sta, rl->i_end, 0);
     float *arr = stat_into_inp_arr(state, sut_ord, stat_act);
 
     card_t sel_cards[N_CRD] = {NON_CARD};
@@ -491,10 +509,12 @@ static card_t act(agent_t *agent)
     float v = 0;
     vec_init_prealloc(&inp_v, stat_act, rl->sta.d2);
     vec_init_prealloc(&out_v, &v, 1);
+#ifdef DEBUG
     char str_buff[4096] = {0};
     char bf1[64] = {0}, bf2[64] = {0};
     sprintf(str_buff, "Act; player %d led %c trump %c\n", agent->id,
             SUT_CHR[led], SUT_CHR[trump]);
+#endif
     for (int i = 0; i < nbr_cards; i++)
     {
         act_into_inp_arr(sel_cards + i, sut_ord, arr);
@@ -504,15 +524,21 @@ static card_t act(agent_t *agent)
             c_m = sel_cards[i];
             v_m = v;
         }
-
+#ifdef DEBUG
         sprintf(bf2, "%s,%g  ", card_to_str(sel_cards + i, bf1), v);
         strcat(str_buff, bf2);
+#endif
     }
+#ifdef DEBUG
     sprintf(bf2, "\nact %s qm %g\n", card_to_str(&c_m, bf1), v_m);
     strcat(str_buff, bf2);
     log_msg(LOG_DBG, str_buff);
-    act_into_inp_arr(&c_m, sut_ord, arr);
-    // log_msg(debug, "stat_act[%d]: %s\n", rl->i_end - 1, vec_to_str(&inp_v, str_buff));
+#endif
+    if (intern->train)
+    {
+        act_into_inp_arr(&c_m, sut_ord, arr);
+        rl->i_end++;
+    }
     return c_m;
 }
 
@@ -537,23 +563,26 @@ static void trick_gain(agent_t *agent, float reward)
         return;
 
     update_q_on_trick(&intern->rl_trumpleads, reward);
-
     update_q_on_trick(&intern->rl_distinct, reward);
-
     update_q_on_trick(&intern->rl_leader, reward);
 }
 
-static void train_on_round(RL_t *rl, ag_RL_intern *intern)
+static void train_on_round(RL_t *rl, ag_RL_intern *intern, int psb_dt_p_rnd)
 {
     assert(rl->i_end <= rl->q.d1);
     rl->i_bgn = rl->i_end;
-    if (rl->i_bgn + N_TRK >= rl->q.d1)
+    if (rl->i_bgn + psb_dt_p_rnd >= rl->q.d1)
     {
-        nn_model_train(&rl->mdl, &rl->sta,
-                       &rl->q, rl->sta.d1, intern->train_epochs,
+        IND_TYP nbr_rows = rl->sta.d1;
+        rl->sta.d1 = rl->q.d1 = rl->i_end;
+        int batch_size = rl->i_end / 2 + 1;
+
+        nn_model_train(&rl->mdl, &rl->sta, &rl->q, batch_size, intern->train_epochs,
                        intern->train_shuffle, intern->alpha, nn_err_MSE, Regression);
+
         rl->i_bgn = rl->i_end = 0;
         mat_fill_zero(&rl->q);
+        rl->sta.d1 = rl->q.d1 = nbr_rows;
     }
 }
 
@@ -572,26 +601,27 @@ static void round_gain(agent_t *agent, float reward)
         *q = reward;
     }
 
-    train_on_round(&intern->rl_calltrump, intern);
-    train_on_round(&intern->rl_leader, intern);
-    train_on_round(&intern->rl_trumpleads, intern);
-    train_on_round(&intern->rl_distinct, intern);
+    train_on_round(&intern->rl_calltrump, intern, 1);
+    train_on_round(&intern->rl_leader, intern, N_TRK);
+    train_on_round(&intern->rl_trumpleads, intern, N_TRK);
+    train_on_round(&intern->rl_distinct, intern, N_TRK);
 }
 
 static void finalize_episode(agent_t *agent, const void *param)
 {
     assert(agent);
     ag_RL_intern *intern = (ag_RL_intern *)agent->intern;
-
-    intern->episode_counter++;
+    if (intern->train)
+        intern->episode_counter++;
 }
 
 void ag_RL_cns_param_reset(ag_RL_construct_param *param)
 {
     param->alpha = -1;
-    param->delta = -1;
+    param->eps_delta = -1;
+    param->init_eps = -1;
+    param->eps_offset = INT32_MAX;
     param->en_act = ACTIV_NON;
-    param->init_episode_counter = -1;
     param->RL_ag_filepath[0] = 0;
     param->train = -1;
     param->nbr_hid_lays = -1;

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <assert.h>
+#include <math.h>
 
 #include "card.h"
 #include "deck.h"
@@ -28,13 +29,15 @@ int main(int argc, char **argv)
 
     switch (argc)
     {
+    case 5:
+        RL_cnst_param.init_eps = strtof(argv[4], NULL);
     case 4:
-        RL_cnst_param.init_episode_counter = atoi(argv[3]);
+        RL_cnst_param.train = (bool)strtoul(argv[3], NULL, 10);
     case 3:
-        log_level = atoi(argv[2]);
+        log_level = strtol(argv[2], NULL, 10);
         log_set_level(log_level);
     case 2:
-        nbr_games = atoi(argv[1]);
+        nbr_games = strtol(argv[1], NULL, 10);
         assert(nbr_games > 0);
     }
 
@@ -69,8 +72,8 @@ int main(int argc, char **argv)
 
         // if (pl % N_PLPT == 0)
         // {
-            agent[pl].class = agent_RL;
-            agent_construct(agent + pl, pl, &RL_cnst_param);
+        agent[pl].class = agent_RL;
+        agent_construct(agent + pl, pl, &RL_cnst_param);
         // }
         // else
         // {
@@ -84,6 +87,9 @@ int main(int argc, char **argv)
 
     char buff_str[256] = {0};
     int scores[N_TEAM] = {0};
+    bool show_progress = true;
+    float progress_limit = 0;
+    float progress_inc = 10;
     for (int game = 0; game < nbr_games; game++)
     {
         log_msg(LOG_INF, "Game %d ####\n", game);
@@ -199,6 +205,16 @@ int main(int argc, char **argv)
         log_msg(LOG_INF, "Game %d winner team: %d\n", game, winner_team);
         for (int pl = 0; pl < N_PLY; pl++)
             agent_finalize(agent + pl, NULL);
+
+        if (show_progress)
+        {
+            float progress = (game + 1.0f) * 100.0f / nbr_games;
+            if (progress >= progress_limit)
+            {
+                printf("PROGRESS: %5.1f%%\t  time(): %ld\n", progress, time(NULL));
+                progress_limit += progress_inc;
+            }
+        }
     } // game
 
     for (int t = 0; t < N_TEAM; t++)

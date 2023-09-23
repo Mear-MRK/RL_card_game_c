@@ -7,8 +7,9 @@ typedef struct ag_RL_construct_param_struct
 {
     char RL_ag_filepath[512];
     int train;
-    int init_episode_counter;
-    float delta;
+    float init_eps;
+    int eps_offset;
+    float eps_delta;
     float alpha;
     int nbr_hid_lays;
     enum nn_activ en_act;

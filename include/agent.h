@@ -13,10 +13,17 @@ typedef void (*init_func)(agent_t *, const void *param);
 typedef suit_t (*call_trump_func)(agent_t *);
 typedef card_t (*act_func)(agent_t *);
 typedef void (*gain_func)(agent_t *, float reward);
-typedef void (*finalize_func)(agent_t *, const void *);
+typedef void (*finalize_func)(agent_t *, const void *param);
+typedef char *(*to_string_func)(agent_t *, char *out_str);
+
+typedef int class_id;
+
+#define agent_class_NAME_MAX_LEN 15
 
 typedef struct agent_class_struct
 {
+	class_id uniq_id;
+	char name[agent_class_NAME_MAX_LEN + 1];
 	construct_func construct;
 	destruct_func destruct;
 	init_func init_episode;
@@ -26,17 +33,21 @@ typedef struct agent_class_struct
 	gain_func trick_gain;
 	gain_func round_gain;
 	finalize_func finalize_episode;
+	to_string_func to_string;
 } agent_class;
+
+#define agent_NAME_MAX_LEN 31
 
 struct agent_struct
 {
-	agent_class class;
 	int id;
+	agent_class class;
+	char name[agent_NAME_MAX_LEN + 1];
 	state_t *state;
 	void *intern;
 };
 
-agent_t *agent_construct(agent_t *agent, int player_id, const void *param);
+agent_t *agent_construct(agent_t *agent, const agent_class* ag_class, int player_id, const void *param);
 void agent_destruct(agent_t *agent);
 void agent_init_episode(agent_t *agent, state_t *state, const void *param);
 void agent_init_round(agent_t *agent, const void *param);
@@ -45,5 +56,6 @@ card_t agent_act(agent_t *agent);
 void agent_trick_gain(agent_t *agent, float reward);
 void agent_round_gain(agent_t *agent, float reward);
 void agent_finalize(agent_t *agent, const void* param);
+char *agent_to_str(agent_t *agent, char *out_str);
 
 #endif /* AGENT_H_ */

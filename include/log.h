@@ -4,11 +4,11 @@
 
 typedef enum log_type_enum
 {
-    LOG_DBG = 0,
-    LOG_INF,
-    LOG_WRN,
-    LOG_ERR,
-    LOG_NON
+    LOG_DBG = 0,    // debug
+    LOG_INF,        // info
+    LOG_WRN,        // warning
+    LOG_ERR,        // error
+    LOG_NON         // none (no log limit)
 } log_type;
 
 #define LOG_MAX_LEN 127

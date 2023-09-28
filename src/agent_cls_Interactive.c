@@ -1,4 +1,4 @@
-#include "agent.h"
+#include "agent_cls_Interactive.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -13,15 +13,16 @@ typedef struct ag_inter_intern_struct
     int game_score;
 } ag_inter_intern;
 
-static agent_t *construct(agent_t *agent, const void *param)
+static agent_t *constructor(agent_t *agent, const void *param)
 {
     assert(agent);
+    strcat(agent->name, " : INTERACTIVE");
     agent->intern = calloc(1, sizeof(ag_inter_intern));
     assert(agent->intern);
     return agent;
 }
 
-static void destruct(agent_t *agent)
+static void destructor(agent_t *agent)
 {
     free(agent->intern);
     agent->intern = NULL;
@@ -120,8 +121,9 @@ static void round_gain(agent_t *agent, float reward)
         intern->game_score++;
 }
 
-const agent_class agent_interact = 
-{.construct = construct, .destruct = destruct, 
+const agent_class agent_cls_Interactive = 
+{.construct = constructor, .destruct = destructor, 
 .init_episode = init_episode, .init_round = init_round, 
 .call_trump = call_trump, .act = act, 
-.trick_gain = trick_gain, .round_gain = round_gain, .finalize_episode = NULL};
+.trick_gain = trick_gain, .round_gain = round_gain, .finalize_episode = NULL,
+.to_string = NULL};

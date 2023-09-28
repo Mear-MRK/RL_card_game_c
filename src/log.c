@@ -32,7 +32,6 @@ void log_msg(log_type type, const char *format_str, ...)
     }
 
     va_list args;
-
     char frmt[LOG_MAX_LEN + 1] = {0};
     strcat(frmt, LOG_TYP_STR[type]);
     strcat(frmt, ": ");

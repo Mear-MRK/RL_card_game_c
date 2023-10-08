@@ -6,14 +6,23 @@
 #include <string.h>
 #include <stdio.h>
 
-agent_t *agent_construct(agent_t *agent, const agent_class* ag_class, int player_id, const void *param)
+
+bool agent_is_of_class(const agent_t *ag, const agent_class *cls)
+{
+    assert(ag);
+    assert(cls);
+    return memcmp(&ag->class, cls, sizeof(agent_class)) == 0;
+}
+
+agent_t *agent_construct(agent_t *agent, const agent_class *ag_class, unsigned player_id, const void *param)
 {
     assert(agent);
     assert(ag_class);
     agent->class = *ag_class;
-    agent->id = player_id;
+    agent->player_id = player_id;
+    agent->unique_id = -1;
     memset(agent->name, 0, sizeof(agent->name));
-    sprintf(agent->name, "AG%2d %s ", agent->id, agent->class.name);
+    sprintf(agent->name, "AGT %d %s", agent->player_id, agent->class.name);
     agent->state = NULL;
     agent->intern = NULL;
     if (agent->class.construct)
@@ -81,7 +90,7 @@ void agent_finalize(agent_t *agent, const void *param)
         agent->class.finalize_episode(agent, param);
 }
 
-char *agent_to_str(agent_t *agent, char *out_str)
+char *agent_to_str(const agent_t *agent, char *out_str)
 {
     assert(agent);
     assert(out_str);

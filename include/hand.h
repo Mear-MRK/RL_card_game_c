@@ -2,6 +2,7 @@
 #define HAND_H_ 1
 
 #include <stdbool.h>
+#include <stdalign.h>
 
 #include "card.h"
 
@@ -9,7 +10,7 @@ typedef struct hand_struct
 {
 	int len_sut[N_SUT];
 	rank_t st_card[N_SUT][N_RNK];
-	float n_card[N_SUT][N_RNK];
+	alignas(64) float n_card[N_SUT][N_RNK];
 
 } hand_t;
 

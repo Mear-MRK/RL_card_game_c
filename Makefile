@@ -19,12 +19,13 @@ AR = ar
 COM_CFLAGS = -std=c11 -Wall -Wextra -I$(INCPATH) $(EXT_INC_FLAGS) -DINDEX_T=INT32 -DFEILD_T=FLT32
 OPT_CFLAGS = -flto -O3
 
-MKL_LD_LIBS = -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -ldl
+MKL_LD_LIBS = -lmkl_rt -lm
+# -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -ldl
 RLS_CFLAGS = -DNDEBUG $(COM_CFLAGS) $(OPT_CFLAGS)
 RLS_LDFLAGS = $(OPT_CFLAGS) -L$(LIBPATH) $(EXT_LIB_FLAGS)
 RLS_LD_LIBS = -lann -llin_alg_flt32 $(MKL_LD_LIBS)
 DBG_CFLAGS = -DDEBUG -g $(COM_CFLAGS) 
-DBG_LDFLAGS = -L$(LIBPATH) $(EXT_LIB_FLAGS) -g
+DBG_LDFLAGS = -L$(LIBPATH) $(EXT_LIB_FLAGS) -g -no-pie -ggdb3
 DBG_LD_LIBS = -lann_dbg -llin_alg_flt32_dbg $(MKL_LD_LIBS)
 
 

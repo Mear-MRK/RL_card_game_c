@@ -35,11 +35,11 @@ int cmp_card(const card_t *cl, const card_t *cr, suit_t led, suit_t trump)
 }
 
 // Gives the taker player
-int eval_table(table_t *table, suit_t trump)
+unsigned eval_table(table_t *table, suit_t trump)
 {
-    int m_pl = -1;
+    unsigned m_pl = NON_PLAYER;
     card_t m_c = NON_CARD;
-    for (int pl = 0; pl < N_PLY; pl++)
+    for (unsigned pl = 0; pl < N_PLAYERS; pl++)
     {
         if (cmp_card(table->card_arr + pl, &m_c, table->led, trump) > 0)
         {

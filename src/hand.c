@@ -15,7 +15,7 @@ hand_t *hand_add(hand_t *hand, const card_t *card)
 	assert(hand);
 	assert(card);
 	assert(card_is_valid(card));
-	if(! hand->n_card[card->sut][card->rnk] )
+	if (!hand->n_card[card->sut][card->rnk])
 	{
 		hand->st_card[card->sut][hand->len_sut[card->sut]++] = card->rnk;
 		hand->n_card[card->sut][card->rnk] = 1;
@@ -28,7 +28,7 @@ hand_t *hand_add_cid(hand_t *hand, cid_t cid)
 {
 	card_t c;
 	hand_add(hand, card_from_cid(&c, cid));
-    return hand;
+	return hand;
 }
 
 hand_t *hand_remove(hand_t *hand, const card_t *card)
@@ -71,7 +71,7 @@ hand_t *hand_add_cid_arr(hand_t *hand, const cid_t cid[], int nbr_cards)
 	{
 		hand_add_cid(hand, cid[i]);
 	}
-    return hand;
+	return hand;
 }
 
 float *hand_to_float(const hand_t *hand,
@@ -82,6 +82,11 @@ float *hand_to_float(const hand_t *hand,
 	assert(hand);
 	assert(flt_arr);
 
+	if (!sut_select && !sut_ord)
+	{
+		memcpy(flt_arr, hand->n_card, sizeof(hand->n_card));
+		return flt_arr + N_CRD;
+	}
 
 	for (int i = 0; i < N_SUT; i++)
 	{
@@ -161,10 +166,10 @@ char *hand_to_str_v2(const hand_t *hand, char *str)
 		str[i++] = ' ';
 		for (int j = 0; j < hand->len_sut[s]; j++)
 		{
-				int r = hand->st_card[s][j];
-				assert(r >= 0 && r < N_RNK);
-				str[i++] = RNK_CHR[r];
-				str[i++] = ' ';
+			int r = hand->st_card[s][j];
+			assert(r >= 0 && r < N_RNK);
+			str[i++] = RNK_CHR[r];
+			str[i++] = ' ';
 		}
 		if (s < N_SUT - 1)
 			str[i++] = '\n';

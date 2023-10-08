@@ -6,7 +6,7 @@
 
 typedef struct state_struct
 {
-	int play_ord;
+	unsigned play_ord;
 	suit_t *p_trump;
 	hand_t *p_hand;
 	table_t *p_table;

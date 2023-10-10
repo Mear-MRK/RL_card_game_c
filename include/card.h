@@ -15,6 +15,7 @@ typedef enum suit_enum
     Heart,
     Club,
     Diamond,
+    UNKNOWN_SUT
 } suit_t;
 
 typedef enum rank_enum
@@ -32,7 +33,8 @@ typedef enum rank_enum
     Jack,
     Queen,
     King,
-    Ace
+    Ace,
+    UNKNOWN_RNK
 } rank_t;
 
 typedef int8_t cid_t;
@@ -51,9 +53,13 @@ typedef struct card_struct
 
 #define NON_CARD ((card_t){.sut = NON_SUT, .rnk = NON_RNK, .cid = NON_CID})
 
+bool is_suit_valid(suit_t s);
+bool is_rank_valid(rank_t r);
+bool is_cid_valid(cid_t id);
+bool card_is_valid(const card_t *);
+
 bool card_is_equal(const card_t *, const card_t *);
 bool card_is_none(const card_t *);
-bool card_is_valid(const card_t *);
 
 card_t *card_from_cid(card_t* card, cid_t id);
 card_t *card_from_sut_rnk(card_t* card, suit_t s, rank_t r);

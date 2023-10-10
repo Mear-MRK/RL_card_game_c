@@ -53,6 +53,7 @@ typedef struct agent_RL_intern_struct
     // bool no_exploration;
     int eps_offset;  // counter offset
     float eps_delta; // dilation coef.
+    float gamma;     // discunt coef.
 } agent_RL_intern_t;
 
 static void construct_nn_model(nn_model_t *model, int inp_sz, unsigned nbr_hid_layers,
@@ -106,12 +107,12 @@ agent_RL_models_t *agent_RL_models_construct(agent_RL_models_t *rl_models, unsig
     inp_sz = 6 * N_CRD; // stat: hand + played + table, act: card
     rl = &rl_models->rl_distinct;
     construct_RL(rl, inp_sz, (unsigned)round(nbr_rounds_in_buff * N_TRICKS * 2.1));
-    inp_sz = 6 * N_CRD; // stat: hand + played + table, act: card
-    rl = &rl_models->rl_trumpleads;
-    construct_RL(rl, inp_sz, nbr_rounds_in_buff * N_TRICKS);
     inp_sz = 3 * N_CRD; // stat: hand + played, act: card
     rl = &rl_models->rl_leader;
     construct_RL(rl, inp_sz, nbr_rounds_in_buff * N_TRICKS);
+    inp_sz = 6 * N_CRD; // stat: hand + played + table, act: card
+    rl = &rl_models->rl_trumpleads;
+    construct_RL(rl, inp_sz, (unsigned)round(nbr_rounds_in_buff * N_TRICKS * 0.78));
     log_msg(LOG_DBG, "construct_RL_models done.\n");
     return rl_models;
 }
@@ -217,6 +218,7 @@ static agent_t *constructor(agent_t *agent, const void *param)
     // intern->no_exploration = false;
     intern->eps_offset = 0;
     intern->eps_delta = 3;
+    intern->gamma = 0.5;
 
     if (inp_param->train >= 0)
         intern->train = (bool)inp_param->train;
@@ -224,6 +226,9 @@ static agent_t *constructor(agent_t *agent, const void *param)
         intern->eps_delta = inp_param->eps_delta;
     if (inp_param->eps_offset != INT32_MAX)
         intern->eps_offset = inp_param->eps_offset;
+    if(inp_param->gamma >= 0 && inp_param->gamma <= 1)
+        intern->gamma = inp_param->gamma;
+
     // if (inp_param->init_eps > 0)
     // {
     //     intern->eps_offset =
@@ -543,11 +548,13 @@ static card_t act(agent_t *agent)
     return c_m;
 }
 
-static void update_q(intern_re_buff_t *rebf, FLT_TYP reward)
+static void update_q(intern_re_buff_t *rebf, FLT_TYP reward, FLT_TYP disc_factor)
 {
-    for (int i = rebf->i_bgn; i < rebf->i_end; i++)
+    FLT_TYP disc_reward = reward;
+    for (int i = rebf->i_end - 1; i >= rebf->i_bgn; i--)
     {
-        *mat_at(&rebf->q, i, 0) += reward;
+        *mat_at(&rebf->q, i, 0) += disc_reward;
+        disc_reward *= disc_factor;
     }
 }
 
@@ -562,9 +569,9 @@ static void trick_gain(agent_t *agent, FLT_TYP reward)
     if (!intern->train)
         return;
 
-    update_q(&intern->rebf_trumpleads, reward);
-    update_q(&intern->rebf_distinct, reward);
-    update_q(&intern->rebf_leader, reward);
+    update_q(&intern->rebf_trumpleads, reward, intern->gamma);
+    update_q(&intern->rebf_distinct, reward, intern->gamma);
+    update_q(&intern->rebf_leader, reward, intern->gamma);
 }
 
 static inline void eq_i(intern_re_buff_t *rebf)
@@ -580,7 +587,7 @@ static void round_gain(agent_t *agent, float reward)
     if (!intern->train)
         return;
 
-    update_q(&intern->rebf_calltrump, reward);
+    update_q(&intern->rebf_calltrump, reward, 0);
     eq_i(&intern->rebf_calltrump);
     eq_i(&intern->rebf_distinct);
     eq_i(&intern->rebf_trumpleads);
@@ -602,7 +609,7 @@ static inline void insert_into_replay_buff(RL_replay_buffer_t *m_rb, intern_re_b
     mat_init_prealloc(&q, rebf->q.arr, rebf->i_end, rebf->q.d2);
     RL_replay_buffer_append(m_rb, &sta, &q);
 #ifdef DEBUG
-    log_msg(LOG_DBG, "avg rebf.q: %g\n", mat_sum(&q)/q.d1);
+    log_msg(LOG_DBG, "avg rebf.q: %g\n", mat_sum(&q) / q.d1);
 #endif
     reset_re_buff(rebf);
 }
@@ -627,6 +634,7 @@ void agent_RL_construct_param_clear(agent_RL_construct_param_t *param)
     param->init_eps = -1;
     param->eps_offset = INT32_MAX;
     param->train = -1;
+    param->gamma = -1;
     log_msg(LOG_DBG, "agent_RL_construct_param_clear done.\n");
 }
 

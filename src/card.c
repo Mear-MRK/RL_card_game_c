@@ -7,6 +7,26 @@ const char RNK_CHR[] = {'2', '3', '4', '5', '6', '7', '8', '9', 'X', 'J', 'Q',
 						'K', 'A', '-'};
 const char SUT_CHR[] = {'S', 'H', 'C', 'D', '-'};
 
+bool is_suit_valid(suit_t s)
+{
+	return s > NON_SUT && s < UNKNOWN_SUT;
+}
+
+bool is_rank_valid(rank_t r)
+{
+	return r > NON_RNK && r < UNKNOWN_RNK;
+}
+
+bool is_cid_valid(cid_t id)
+{
+	return id >= 0 && id < N_CRD;
+}
+
+bool card_is_valid(const card_t *card)
+{
+	return is_suit_valid(card->sut) && is_rank_valid(card->rnk) && is_cid_valid(card->cid);
+}
+
 bool card_is_equal(const card_t *c1, const card_t *c2)
 {
 	return c1->cid == c2->cid;
@@ -17,15 +37,10 @@ bool card_is_none(const card_t *card)
 	return card->cid == NON_CID;
 }
 
-bool card_is_valid(const card_t *card)
-{
-	return card->sut >= 0 && card->rnk >= 0 && card->sut < N_SUT && card->rnk < N_RNK && card->cid >= 0 && card->cid < N_CRD;
-}
-
 card_t *card_from_cid(card_t *card, cid_t id)
 {
 	assert(card);
-	assert(id >= 0 && id < N_CRD || id == NON_CID);
+	assert(is_cid_valid(id) || id == NON_CID);
 	card->sut = id / N_RNK;
 	card->rnk = id % N_RNK;
 	card->cid = id;
@@ -35,12 +50,12 @@ card_t *card_from_cid(card_t *card, cid_t id)
 card_t *card_from_sut_rnk(card_t *card, suit_t s, rank_t r)
 {
 	assert(card);
-	assert(s >= 0 && s < N_SUT);
-	assert(r >= 0 && r < N_RNK);
+	assert(is_suit_valid(s));
+	assert(is_rank_valid(r));
 	card->sut = s;
 	card->rnk = r;
 	card->cid = s * N_RNK + r;
-    return card;
+	return card;
 }
 
 char *card_to_str(const card_t *card, char *str)

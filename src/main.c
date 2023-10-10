@@ -13,6 +13,7 @@
 #include "agent_cls_Rand.h"
 #include "agent_cls_Interactive.h"
 #include "agent_cls_RL.h"
+#include "agent_cls_Sound.h"
 
 #include "log.h"
 
@@ -32,20 +33,24 @@ static agent_class parse_ag_ch(char ag_ch)
         return agent_cls_Rand;
     case 'i':
         return agent_cls_Interactive;
+    case 's':
+        return agent_cls_Sound;
     default:
         fprintf(stderr, "Wrong agent char!\n");
         exit(EXIT_FAILURE);
     }
 }
 
-static void train_RL_model(RL_model_t *rl_mdl, float fill_factor)
+static bool train_RL_model(RL_model_t *rl_mdl, float fill_factor)
 {
-    if (fill_factor == 0 || RL_replay_buffer_near_full(&rl_mdl->replay_buff, fill_factor)) // (rl_mdl->replay_buff.is_full)
+    bool train = fill_factor == 0 || RL_replay_buffer_near_full(&rl_mdl->replay_buff, fill_factor);
+    if (train)
     {
         RL_train(rl_mdl, NULL);
         RL_replay_buffer_clear(&rl_mdl->replay_buff);
         rl_mdl->nbr_training++;
     }
+    return train;
 }
 
 int main(int argc, char *argv[])
@@ -80,11 +85,11 @@ int main(int argc, char *argv[])
         nbr_episodes = strtol(argv[1], NULL, 10);
         assert(nbr_episodes > 0);
     }
-    unsigned nbr_episodes_in_re_buff = MIN(nbr_episodes / 3, 10000);
+    unsigned nbr_episodes_in_re_buff = MIN(nbr_episodes / 10, 1000);
     if (!nbr_episodes_in_re_buff)
         nbr_episodes_in_re_buff = 1;
     unsigned nbr_hid_layers = 2;
-    nn_activ_t activ = nn_activ_RELU;
+    nn_activ_t activ = nn_activ_SIGMOID;
     float dropout = 0.1;
     nn_optim_class optim_cls = nn_optim_cls_ADAM;
 
@@ -161,6 +166,7 @@ int main(int argc, char *argv[])
         printf("PROGRESS: %5.1f%%\n", 0.0);
     }
     unsigned last_scores[N_TEAMS] = {0};
+    bool trained[4] = {0}; // 4: nbr of models
 
     time_t start_time = time(NULL);
     time_t p_time = start_time;
@@ -274,7 +280,7 @@ int main(int argc, char *argv[])
                 round_leader = (round_leader + 1) % N_PLAYERS;
             game_scores[round_winner_team]++;
         } // round
-        unsigned winner_team = -1;
+        unsigned winner_team = 10101u;
         unsigned winner_score = 0;
         for (unsigned t = 0; t < N_TEAMS; t++)
             if (game_scores[t] > winner_score)
@@ -289,10 +295,10 @@ int main(int argc, char *argv[])
         if (training)
         {
             // puts("Training...");
-            train_RL_model(&rl_models.rl_calltrump, train_buffer_fill_factor);
-            train_RL_model(&rl_models.rl_distinct, train_buffer_fill_factor);
-            train_RL_model(&rl_models.rl_trumpleads, train_buffer_fill_factor);
-            train_RL_model(&rl_models.rl_leader, train_buffer_fill_factor);
+            trained[0] = trained[0] || train_RL_model(&rl_models.rl_calltrump, train_buffer_fill_factor);
+            trained[1] = trained[1] || train_RL_model(&rl_models.rl_distinct, train_buffer_fill_factor);
+            trained[2] = trained[2] || train_RL_model(&rl_models.rl_leader, train_buffer_fill_factor);
+            trained[3] = trained[3] || train_RL_model(&rl_models.rl_trumpleads, train_buffer_fill_factor);
         }
 
         float progress = (game + 1.0f) * 100.0f / nbr_episodes;
@@ -300,9 +306,10 @@ int main(int argc, char *argv[])
         if (progress >= progress_limit)
         {
             time_t c_time = time(NULL);
-            double delta_t = difftime(c_time, p_time);
+            double delta_t;
             if (show_progress)
             {
+                delta_t = difftime(c_time, p_time);
                 printf("PROGRESS: %5.1f%%  delta_t: %5lds  win ratio (team0/team1): %5.2f  ",
                        progress,
                        (long)delta_t,
@@ -310,22 +317,25 @@ int main(int argc, char *argv[])
                 last_scores[0] = scores[0];
                 last_scores[1] = scores[1];
                 p_time = c_time;
+
+                if (trained[0] || trained[1] || trained[2] || trained[3])
+                    printf("trained=%d%d%d%d  ", trained[0], trained[1], trained[2], trained[3]);
             }
+            memset(trained, 0, sizeof(trained));
 
             delta_t = difftime(c_time, ls_time);
-            if (training && auto_save && delta_t >= auto_save_interval)
+            if (training && auto_save && (delta_t >= auto_save_interval) && !(progress >= 90))
             {
                 int save_err = agent_RL_models_save(&rl_models, models_filepath);
-                if (!save_err)
-                    puts("auto_save: Models have been saved.");
                 ls_time = c_time;
+                if (!save_err && show_progress)
+                    printf("auto_save  ");
             }
-            else
-                puts("");
 
+            if (show_progress)
+                puts("");
             progress_limit += progress_inc;
         }
-
     } // game
     puts("");
     for (unsigned t = 0; t < N_TEAMS; t++)
@@ -338,6 +348,7 @@ int main(int argc, char *argv[])
     if (training)
     {
         printf("Final possible trainings... ");
+        fflush(stdout);
         train_RL_model(&rl_models.rl_calltrump, 0);
         train_RL_model(&rl_models.rl_distinct, 0);
         train_RL_model(&rl_models.rl_trumpleads, 0);

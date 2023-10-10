@@ -17,10 +17,20 @@ hand_t *hand_add(hand_t *hand, const card_t *card)
 	assert(card_is_valid(card));
 	if (!hand->n_card[card->sut][card->rnk])
 	{
-		hand->st_card[card->sut][hand->len_sut[card->sut]++] = card->rnk;
 		hand->n_card[card->sut][card->rnk] = 1;
+		for (int i = 0; i < hand->len_sut[card->sut]; i++)
+		{
+			if (card->rnk < hand->st_card[card->sut][i])
+			{
+				memmove(&hand->st_card[card->sut][i + 1], &hand->st_card[card->sut][i],
+						(hand->len_sut[card->sut] - i) * sizeof(rank_t));
+				hand->st_card[card->sut][i] = card->rnk;
+				hand->len_sut[card->sut]++;
+				return hand;
+			}
+		}
+		hand->st_card[card->sut][hand->len_sut[card->sut]++] = card->rnk;
 	}
-
 	return hand;
 }
 
@@ -91,7 +101,7 @@ float *hand_to_float(const hand_t *hand,
 	for (int i = 0; i < N_SUT; i++)
 	{
 		suit_t s = (sut_ord) ? sut_ord[i] : i;
-		assert(s >= 0 && s < N_SUT);
+		assert(is_suit_valid(s));
 		if (sut_select && !sut_select[s])
 			continue;
 		memcpy(flt_arr, &hand->n_card[s], N_RNK * sizeof(float));
@@ -176,4 +186,74 @@ char *hand_to_str_v2(const hand_t *hand, char *str)
 	}
 	str[i] = 0;
 	return str;
+}
+
+bool hand_has_suit(const hand_t *hand, suit_t s)
+{
+	assert(is_suit_valid(s));
+    return (bool) hand->len_sut[s];
+}
+
+card_t hand_min(const hand_t *hand, suit_t s)
+{
+	assert(hand);
+	assert(is_suit_valid(s));
+	if (!hand_has_suit(hand, s))
+		return NON_CARD;
+	card_t c;
+	card_from_sut_rnk(&c, s, hand->st_card[s][0]);
+	return c;
+}
+
+card_t hand_max(const hand_t *hand, suit_t s)
+{
+	assert(hand);
+	assert(is_suit_valid(s));
+	if (!hand->len_sut[s])
+		return NON_CARD;
+	card_t c;
+	card_from_sut_rnk(&c, s, hand->st_card[s][hand->len_sut[s] - 1]);
+	return c;
+}
+
+card_t hand_min_max(const hand_t *hand, const card_t *c, suit_t led, suit_t trump)
+{
+	assert(hand);
+	assert(c);
+	assert(card_is_valid(c));
+	assert(is_suit_valid(led) || led == NON_SUT);
+	assert(is_suit_valid(trump) || trump == NON_SUT);
+
+	if (led == NON_SUT)
+		led = c->sut;
+
+	card_t o = NON_CARD;
+
+	if (c->sut == trump)
+	{
+		if(hand_has_suit(hand, led) && led != trump)
+			return NON_CARD;
+
+		for (int i = 0; i < hand->len_sut[trump]; i++)
+			if (hand->st_card[trump][i] > c->rnk)
+			{
+				card_from_sut_rnk(&o, trump, hand->st_card[trump][i]);
+				break;
+			}
+		return o;
+	}
+
+	if (!hand_has_suit(hand, led))
+		return hand_min(hand, trump);
+
+	if (c->sut != led)
+		return hand_min(hand, led);
+
+	for (int i = 0; i < hand->len_sut[led]; i++)
+		if (hand->st_card[led][i] > c->rnk)
+		{
+			card_from_sut_rnk(&o, led, hand->st_card[led][i]);
+			break;
+		}
+	return o;
 }

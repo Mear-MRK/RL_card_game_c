@@ -32,4 +32,11 @@ int hand_to_card_arr(const hand_t *hand, const bool sut_select[N_SUT], card_t *c
 char *hand_to_str(const hand_t *hand, char *str);
 char *hand_to_str_v2(const hand_t *hand, char *str);
 
+bool hand_has_suit(const hand_t *hand, suit_t s);
+
+
+card_t hand_min(const hand_t *hand, suit_t s);
+card_t hand_max(const hand_t *hand, suit_t s);
+card_t hand_min_max(const hand_t *hand, const card_t *c, suit_t led, suit_t trump);
+
 #endif /* HAND_H_ */

@@ -31,6 +31,7 @@ typedef struct agent_RL_construct_param_struct
     float init_eps;
     int eps_offset;
     float eps_delta;
+    float gamma; // discunt factor
 } agent_RL_construct_param_t;
 
 void agent_RL_construct_param_clear(agent_RL_construct_param_t *param);

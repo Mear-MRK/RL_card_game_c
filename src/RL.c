@@ -138,6 +138,7 @@ int RL_save_models(const RL_model_t *rl_mdl_arr[], int nbr_models, const char *f
     for (int m = 0; m < nbr_models; m++)
     {
         size += sizeof(rl_mdl_arr[m]->nbr_training);
+        size += sizeof(rl_mdl_arr[m]->discunt_factor);
         size += nn_model_serial_size(&rl_mdl_arr[m]->model);
     }
 
@@ -154,6 +155,7 @@ int RL_save_models(const RL_model_t *rl_mdl_arr[], int nbr_models, const char *f
     for (int m = 0; m < nbr_models; m++)
     {
         bytes = wrt2byt(&rl_mdl_arr[m]->nbr_training, sizeof(rl_mdl_arr[m]->nbr_training), bytes);
+        bytes = wrt2byt(&rl_mdl_arr[m]->discunt_factor, sizeof(rl_mdl_arr[m]->discunt_factor), bytes);
         bytes = nn_model_serialize(&rl_mdl_arr[m]->model, bytes);
     }
 
@@ -216,6 +218,7 @@ int RL_load_models(RL_model_t *rl_mdl_arr[], const char *filepath)
     for (int m = 0; m < nbr_models; m++)
     {
         bytes = rd_byt(&rl_mdl_arr[m]->nbr_training, sizeof(rl_mdl_arr[m]->nbr_training), bytes);
+        bytes = rd_byt(&rl_mdl_arr[m]->discunt_factor, sizeof(rl_mdl_arr[m]->discunt_factor), bytes);
         bytes = nn_model_deserialize(&rl_mdl_arr[m]->model, bytes);
     }
     free((void *)init_bytes);

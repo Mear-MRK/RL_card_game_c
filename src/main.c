@@ -41,12 +41,12 @@ static agent_class parse_ag_ch(char ag_ch)
     }
 }
 
-static bool train_RL_model(RL_model_t *rl_mdl, float fill_factor)
+static bool train_RL_model(RL_model_t *rl_mdl, float fill_factor, RL_training_params_t *param)
 {
     bool train = fill_factor == 0 || RL_replay_buffer_near_full(&rl_mdl->replay_buff, fill_factor);
     if (train)
     {
-        RL_train(rl_mdl, NULL);
+        RL_train(rl_mdl, param);
         RL_replay_buffer_clear(&rl_mdl->replay_buff);
         rl_mdl->nbr_training++;
     }
@@ -63,12 +63,15 @@ int main(int argc, char *argv[])
     char models_filepath[512] = {0};
     strcpy(models_filepath, "models.dat");
     bool training = true;
-    float train_buffer_fill_factor = 0.98;
+    float train_buffer_fill_factor = 0.95;
+    bool reset_training_counter = false;
 
     switch (argc)
     {
+    case 7:
+        strcpy(models_filepath, argv[6]);
     case 6:
-        strcpy(models_filepath, argv[5]);
+        reset_training_counter = (bool)atoi(argv[5]);
     case 5:
         strncpy(inp_agent_str, argv[4], 4);
     case 4:
@@ -79,7 +82,7 @@ int main(int argc, char *argv[])
     case 2:
         if (strcmp(argv[1], "-h") == 0)
         {
-            printf("options: [nbr_episodes] [log_level] [training] [agents_string] [models_filepath]\n");
+            printf("options: [nbr_episodes] [log_level] [training] [agents_string] [reset_training_counter] [models_filepath]\n");
             exit(EXIT_SUCCESS);
         }
         nbr_episodes = strtol(argv[1], NULL, 10);
@@ -110,7 +113,7 @@ int main(int argc, char *argv[])
     card_t tbl[N_PLAYERS];
     table_init(&table, tbl, N_PLAYERS);
     table_clear(&table);
-    table_cleanse(&table);
+    // table_cleanse(&table);
 
     suit_t trump = NON_SUT;
 
@@ -127,6 +130,18 @@ int main(int argc, char *argv[])
     agent_RL_construct_param_clear(&ag_RL_cnst_param);
     ag_RL_cnst_param.rl_models = &rl_models;
     ag_RL_cnst_param.train = training;
+    ag_RL_cnst_param.reset_training_counter = reset_training_counter;
+    ag_RL_cnst_param.discunt_factor = 0.1; // only applies to new models
+
+    RL_training_params_t train_param;
+    RL_trianing_params_clear(&train_param);
+    train_param.nbr_epochs = 1;
+    train_param.batch_size = 39;
+
+    agent_Snd_construct_param_t ag_Snd_cnst_param;
+    agent_Snd_construct_param_clear(&ag_Snd_cnst_param);
+    ag_Snd_cnst_param.rl_mdls = &rl_models;
+    ag_Snd_cnst_param.training = training;
 
     for (unsigned pl = 0; pl < N_PLAYERS; pl++)
     {
@@ -136,7 +151,12 @@ int main(int argc, char *argv[])
         ar_state[pl].p_trump = &trump;
 
         const agent_class ag_cl = parse_ag_ch(inp_agent_str[pl]);
-        const void *param = (inp_agent_str[pl] == 'n') ? &ag_RL_cnst_param : NULL;
+        const void *param;
+        param = NULL;
+        if (inp_agent_str[pl] == 'n')
+            param = &ag_RL_cnst_param;
+        if (inp_agent_str[pl] == 's' && training)
+            param = &ag_Snd_cnst_param;
         agent_construct(agent + pl, &ag_cl, pl, param);
         printf("%s constructed.\n", agent[pl].name);
     }
@@ -295,10 +315,14 @@ int main(int argc, char *argv[])
         if (training)
         {
             // puts("Training...");
-            trained[0] = trained[0] || train_RL_model(&rl_models.rl_calltrump, train_buffer_fill_factor);
-            trained[1] = trained[1] || train_RL_model(&rl_models.rl_distinct, train_buffer_fill_factor);
-            trained[2] = trained[2] || train_RL_model(&rl_models.rl_leader, train_buffer_fill_factor);
-            trained[3] = trained[3] || train_RL_model(&rl_models.rl_trumpleads, train_buffer_fill_factor);
+            trained[0] = trained[0] ||
+                         train_RL_model(&rl_models.rl_calltrump, train_buffer_fill_factor, &train_param);
+            trained[1] = trained[1] ||
+                         train_RL_model(&rl_models.rl_distinct, train_buffer_fill_factor, &train_param);
+            trained[2] = trained[2] ||
+                         train_RL_model(&rl_models.rl_leader, train_buffer_fill_factor, &train_param);
+            trained[3] = trained[3] ||
+                         train_RL_model(&rl_models.rl_trumpleads, train_buffer_fill_factor, &train_param);
         }
 
         float progress = (game + 1.0f) * 100.0f / nbr_episodes;
@@ -349,10 +373,10 @@ int main(int argc, char *argv[])
     {
         printf("Final possible trainings... ");
         fflush(stdout);
-        train_RL_model(&rl_models.rl_calltrump, 0);
-        train_RL_model(&rl_models.rl_distinct, 0);
-        train_RL_model(&rl_models.rl_trumpleads, 0);
-        train_RL_model(&rl_models.rl_leader, 0);
+        train_RL_model(&rl_models.rl_calltrump, 0, &train_param);
+        train_RL_model(&rl_models.rl_distinct, 0, &train_param);
+        train_RL_model(&rl_models.rl_trumpleads, 0, &train_param);
+        train_RL_model(&rl_models.rl_leader, 0, &train_param);
         puts("done.");
         int save_err = agent_RL_models_save(&rl_models, models_filepath);
         if (!save_err)

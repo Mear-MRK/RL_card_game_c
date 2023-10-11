@@ -21,6 +21,7 @@ typedef struct RL_model_struct
     nn_optim_t optim;
     RL_replay_buffer_t replay_buff;
     unsigned nbr_training;
+    FLT_TYP discunt_factor;
 } RL_model_t;
 
 RL_replay_buffer_t *RL_replay_buffer_construct(RL_replay_buffer_t *re_buff, IND_TYP capacity, IND_TYP statact_width);

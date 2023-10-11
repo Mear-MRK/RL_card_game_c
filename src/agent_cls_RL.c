@@ -12,48 +12,21 @@
 
 #include "game.h"
 #include "log.h"
+#include "stat_act_array.h"
+#include "intern_rep_buf.h"
 
-typedef struct intern_re_buff_struct
-{
-    int cap;
-    int i_bgn;
-    int i_end;
-    mat_t sta;
-    mat_t q;
-} intern_re_buff_t;
-
-static void intern_re_buff_construct(intern_re_buff_t *re_buff, int capacity, int sta_width)
-{
-    assert(capacity > 0);
-    re_buff->cap = capacity;
-    re_buff->i_bgn = 0;
-    re_buff->i_end = 0;
-    assert(sta_width > 0);
-    mat_construct(&re_buff->sta, capacity, sta_width);
-    mat_construct(&re_buff->q, capacity, 1);
-    mat_fill_zero(&re_buff->sta);
-    mat_fill_zero(&re_buff->q);
-}
-
-static void intern_re_buff_destruct(intern_re_buff_t *re_buff)
-{
-    mat_destruct(&re_buff->sta);
-    mat_destruct(&re_buff->q);
-    memset(re_buff, 0, sizeof(intern_re_buff_t));
-}
 
 typedef struct agent_RL_intern_struct
 {
     agent_RL_models_t *rl_mdls;
-    intern_re_buff_t rebf_calltrump;
-    intern_re_buff_t rebf_distinct;
-    intern_re_buff_t rebf_trumpleads;
-    intern_re_buff_t rebf_leader;
+    intern_rep_buf_t rebf_calltrump;
+    intern_rep_buf_t rebf_distinct;
+    intern_rep_buf_t rebf_trumpleads;
+    intern_rep_buf_t rebf_leader;
     bool train;
-    // bool no_exploration;
     int eps_offset;  // counter offset
     float eps_delta; // dilation coef.
-    float gamma;     // discunt coef.
+    float flt_arr[6 * N_CRD];
 } agent_RL_intern_t;
 
 static void construct_nn_model(nn_model_t *model, int inp_sz, unsigned nbr_hid_layers,
@@ -86,10 +59,10 @@ static void construct_RL(RL_model_t *rl, IND_TYP inp_sz, unsigned max_nbr_smpl)
 {
     assert(rl);
     assert(inp_sz > 0);
-
     rl->model = nn_model_NULL;
     rl->optim = nn_optim_NULL;
     rl->nbr_training = 0;
+    rl->discunt_factor = 1;
     RL_replay_buffer_construct(&rl->replay_buff, (IND_TYP)max_nbr_smpl, inp_sz);
     log_msg(LOG_DBG, "construct_RL done.\n");
 }
@@ -128,13 +101,16 @@ int agent_RL_models_load(agent_RL_models_t *rl_models, const char *filepath, con
     rl_mdls[2] = &rl_models->rl_trumpleads;
     rl_mdls[3] = &rl_models->rl_leader;
     int out = RL_load_models(rl_mdls, filepath);
+    if (out)
+        return out;
     for (int i = 0; i < 4; i++)
     {
         nn_optim_construct(&rl_mdls[i]->optim, optim_cls, &rl_mdls[i]->model);
         nn_model_set_rnd_gens(&rl_mdls[i]->model, pcg_uint32, pcg_flt);
     }
+    rl_models->new = false;
     log_msg(LOG_DBG, "agent_RL_models_load done.\n");
-    return out;
+    return 0;
 }
 
 agent_RL_models_t *agent_RL_models_nn_construct(agent_RL_models_t *rl_models,
@@ -144,6 +120,12 @@ agent_RL_models_t *agent_RL_models_nn_construct(agent_RL_models_t *rl_models,
                                                 const nn_optim_class *optim_cls)
 {
     assert(rl_models);
+    if(!activ)
+        activ = &nn_activ_SIGMOID;
+    assert(dropout >= 0 && dropout < 1);
+    if(!optim_cls)
+        optim_cls = &nn_optim_cls_ADAM;
+
     RL_model_t *rl;
     rl = &rl_models->rl_calltrump;
     construct_nn_model(&rl->model, rl->replay_buff.width, nbr_hid_layers,
@@ -164,6 +146,7 @@ agent_RL_models_t *agent_RL_models_nn_construct(agent_RL_models_t *rl_models,
     construct_nn_model(&rl->model, rl->replay_buff.width, nbr_hid_layers,
                        activ, dropout);
     nn_optim_construct(&rl->optim, optim_cls, &rl->model);
+    rl_models->new = true;
     log_msg(LOG_DBG, "agent_RL_models_nn_construct done.\n");
     return rl_models;
 }
@@ -210,15 +193,14 @@ static agent_t *constructor(agent_t *agent, const void *param)
     assert(inp_param->rl_models);
 
     intern->rl_mdls = inp_param->rl_models;
-    intern_re_buff_construct(&intern->rebf_calltrump, N_ROUNDS, intern->rl_mdls->rl_calltrump.model.input_size);
-    intern_re_buff_construct(&intern->rebf_distinct, N_ROUNDS * N_TRICKS, intern->rl_mdls->rl_distinct.model.input_size);
-    intern_re_buff_construct(&intern->rebf_trumpleads, N_ROUNDS * N_TRICKS, intern->rl_mdls->rl_trumpleads.model.input_size);
-    intern_re_buff_construct(&intern->rebf_leader, N_ROUNDS * N_TRICKS, intern->rl_mdls->rl_leader.model.input_size);
+    intern_rep_buf_construct(&intern->rebf_calltrump, N_ROUNDS, intern->rl_mdls->rl_calltrump.model.input_size);
+    intern_rep_buf_construct(&intern->rebf_distinct, N_ROUNDS * N_TRICKS, intern->rl_mdls->rl_distinct.model.input_size);
+    intern_rep_buf_construct(&intern->rebf_leader, N_ROUNDS * N_TRICKS, intern->rl_mdls->rl_leader.model.input_size);
+    intern_rep_buf_construct(&intern->rebf_trumpleads, N_ROUNDS * N_TRICKS, intern->rl_mdls->rl_trumpleads.model.input_size);
     intern->train = true;
     // intern->no_exploration = false;
     intern->eps_offset = 0;
     intern->eps_delta = 3;
-    intern->gamma = 0.5;
 
     if (inp_param->train >= 0)
         intern->train = (bool)inp_param->train;
@@ -226,18 +208,20 @@ static agent_t *constructor(agent_t *agent, const void *param)
         intern->eps_delta = inp_param->eps_delta;
     if (inp_param->eps_offset != INT32_MAX)
         intern->eps_offset = inp_param->eps_offset;
-    if(inp_param->gamma >= 0 && inp_param->gamma <= 1)
-        intern->gamma = inp_param->gamma;
-
-    // if (inp_param->init_eps > 0)
-    // {
-    //     intern->eps_offset =
-    //         (int)(intern->episode_counter + intern->eps_delta * (1 - 1 / inp_param->init_eps));
-    // }
-    // else if (inp_param->init_eps == 0)
-    //     intern->no_exploration = true;
-    // if (inp_param->eps_delta > 0)
-    //     intern->eps_delta = inp_param->eps_delta;
+    if (inp_param->reset_training_counter > 0)
+    {
+        intern->rl_mdls->rl_calltrump.nbr_training = 0;
+        intern->rl_mdls->rl_distinct.nbr_training = 0;
+        intern->rl_mdls->rl_leader.nbr_training = 0;
+        intern->rl_mdls->rl_trumpleads.nbr_training = 0;
+    }
+    if (intern->rl_mdls->new && inp_param->discunt_factor >= 0 && inp_param->discunt_factor <= 1)
+    {
+        intern->rl_mdls->rl_calltrump.discunt_factor = inp_param->discunt_factor;
+        intern->rl_mdls->rl_distinct.discunt_factor = inp_param->discunt_factor;
+        intern->rl_mdls->rl_leader.discunt_factor = inp_param->discunt_factor;
+        intern->rl_mdls->rl_trumpleads.discunt_factor = inp_param->discunt_factor;
+    }
 
     return agent;
 }
@@ -246,99 +230,12 @@ static void destructor(agent_t *agent)
 {
     assert(agent);
     agent_RL_intern_t *intern = (agent_RL_intern_t *)agent->intern;
-    intern_re_buff_destruct(&intern->rebf_calltrump);
-    intern_re_buff_destruct(&intern->rebf_distinct);
-    intern_re_buff_destruct(&intern->rebf_trumpleads);
-    intern_re_buff_destruct(&intern->rebf_leader);
+    intern_rep_buf_destruct(&intern->rebf_calltrump);
+    intern_rep_buf_destruct(&intern->rebf_distinct);
+    intern_rep_buf_destruct(&intern->rebf_trumpleads);
+    intern_rep_buf_destruct(&intern->rebf_leader);
     free((void *)intern);
     agent->intern = NULL;
-}
-
-static inline float *calltrump_stat_into_inp_arr(const state_t *state, float *arr)
-{
-    assert(state);
-    assert(arr);
-    return hand_to_float(state->p_hand, NULL, NULL, arr);
-}
-static inline float *calltrump_act_into_inp_arr(suit_t a, float *arr)
-{
-    assert(arr);
-    assert(a >= 0 && a < N_SUT);
-    memset(arr, 0, N_SUT * sizeof(float));
-    arr[a] = 1;
-    return arr + N_SUT;
-}
-
-static inline void sort_sut_ord(suit_t sut_ord[N_SUT], suit_t led, suit_t trump)
-{
-    for (suit_t i = 0; i < N_SUT; i++)
-        sut_ord[i] = i;
-    if (led != NON_SUT)
-    {
-        sut_ord[0] = led;
-        sut_ord[led] = 0;
-    }
-    if (trump != NON_SUT && trump != led)
-    {
-        if (led != 1)
-            sut_ord[1] = sut_ord[trump];
-        else
-            sut_ord[0] = sut_ord[trump];
-        sut_ord[trump] = 1;
-    }
-}
-
-static inline float *table_card_into_inp_arr(const table_t *table, unsigned player, const suit_t sut_ord[N_SUT], float *arr)
-{
-    assert(player < N_PLAYERS);
-    memset(arr, 0, N_CRD * sizeof(float));
-    cid_t i;
-    if (table->leader <= player && player < (table->leader + table->nbr_cards) % N_PLAYERS)
-    {
-        i = table->card_arr[player].rnk + N_RNK * sut_ord[table->card_arr[player].sut];
-        arr[i] = 1;
-    }
-    return arr + N_CRD;
-}
-
-static float *stat_into_inp_arr(const state_t *state, const suit_t sut_ord[N_SUT], float *arr)
-{
-    assert(state);
-    assert(arr);
-
-    arr = hand_to_float(state->p_hand, NULL, sut_ord, arr);
-    arr = hand_to_float(state->p_played, NULL, sut_ord, arr);
-    const table_t *table = state->p_table;
-    if (table->led == NON_SUT)
-    {
-        return arr;
-    }
-    unsigned pl_id = (table->leader + state->play_ord) % N_PLAYERS;
-    unsigned comp = (pl_id + 2) % N_PLAYERS;
-    unsigned op_a = (pl_id + 1) % N_PLAYERS;
-    unsigned op_b = (pl_id + 3) % N_PLAYERS;
-    arr = table_card_into_inp_arr(table, comp, sut_ord, arr);
-    arr = table_card_into_inp_arr(table, op_a, sut_ord, arr);
-    arr = table_card_into_inp_arr(table, op_b, sut_ord, arr);
-
-    return arr;
-}
-
-static float *act_into_inp_arr(const card_t *a, const suit_t sut_ord[N_SUT], float *arr)
-{
-    assert(arr);
-    // assert(card_is_valid(a));
-#ifdef DEBUG
-    if (!card_is_valid(a))
-    {
-        log_msg(LOG_ERR, "ln %d: act_into_inp_arr: Card is not valid: %d,%d,%d\n", __LINE__ - 7, a->sut, a->rnk, a->cid);
-        return NULL;
-    }
-#endif
-    memset(arr, 0, N_CRD * sizeof(float));
-    int i = a->rnk + sut_ord[a->sut] * N_RNK;
-    arr[i] = 1;
-    return arr + N_CRD;
 }
 
 static inline float calc_eps(unsigned counter, float delta, float offset, bool zero)
@@ -362,10 +259,10 @@ static suit_t call_trump(agent_t *agent)
     assert(agent);
     agent_RL_intern_t *intern = (agent_RL_intern_t *)agent->intern;
 
-    intern_re_buff_t *rebf = &intern->rebf_calltrump;
+    intern_rep_buf_t *rebf = &intern->rebf_calltrump;
 
-    float *stat_act = mat_at(&rebf->sta, rebf->i_end, 0);
-    float *arr = calltrump_stat_into_inp_arr(agent->state, stat_act);
+    float *stat_act = intern->flt_arr;
+    float *arr = calltrump_stat_into_float_arr(agent->state, stat_act);
 
     float eps = calc_eps(intern->rl_mdls->rl_calltrump.nbr_training, intern->eps_delta,
                          intern->eps_offset, false);
@@ -374,8 +271,8 @@ static suit_t call_trump(agent_t *agent)
         suit_t a = pcg_uint32() % N_SUT;
         if (intern->train)
         {
-            calltrump_act_into_inp_arr(a, arr);
-            rebf->i_end++;
+            calltrump_act_into_float_arr(a, arr);
+            intern_rep_buf_add(&intern->rebf_calltrump, stat_act);
         }
 #ifdef DEBUG
         log_msg(LOG_DBG, "%s randomly called the trump %c.\n", agent->name, SUT_CHR[a]);
@@ -395,7 +292,7 @@ static suit_t call_trump(agent_t *agent)
 #endif
     for (suit_t a = 0; a < N_SUT; a++)
     {
-        calltrump_act_into_inp_arr(a, arr);
+        calltrump_act_into_float_arr(a, arr);
         nn_model_apply(&intern->rl_mdls->rl_calltrump.model, &inp_v, &out_v, false);
         assert(isfinite(v));
         if (v > v_m)
@@ -413,8 +310,8 @@ static suit_t call_trump(agent_t *agent)
 #endif
     if (intern->train)
     {
-        calltrump_act_into_inp_arr(s_m, arr);
-        rebf->i_end++;
+        calltrump_act_into_float_arr(s_m, arr);
+        intern_rep_buf_add(&intern->rebf_calltrump, stat_act);
     }
     return s_m;
 }
@@ -433,7 +330,7 @@ static card_t act(agent_t *agent)
     sort_sut_ord(sut_ord, led, trump);
 
     RL_model_t *rl = NULL;
-    intern_re_buff_t *rebf = NULL;
+    intern_rep_buf_t *rebf = NULL;
     if (led == NON_SUT)
     {
         assert(agent->player_id == table->leader);
@@ -451,8 +348,8 @@ static card_t act(agent_t *agent)
         rebf = &intern->rebf_distinct;
     }
 
-    float *stat_act = mat_at(&rebf->sta, rebf->i_end, 0);
-    float *arr = stat_into_inp_arr(state, sut_ord, stat_act);
+    float *stat_act = intern->flt_arr;
+    float *arr = stat_into_float_arr(state, sut_ord, stat_act);
 
     card_t sel_cards[N_CRD] = {NON_CARD};
     int nbr_cards = -1;
@@ -475,8 +372,8 @@ static card_t act(agent_t *agent)
         card_t c = sel_cards[pcg_uint32() % nbr_cards];
         if (intern->train)
         {
-            act_into_inp_arr(&c, sut_ord, arr);
-            rebf->i_end++;
+            act_into_float_arr(&c, sut_ord, arr);
+            intern_rep_buf_add(rebf, stat_act);
         }
 #ifdef DEBUG
         char bf[4];
@@ -500,7 +397,7 @@ static card_t act(agent_t *agent)
 #endif
     for (int i = 0; i < nbr_cards; i++)
     {
-        float *out = act_into_inp_arr(sel_cards + i, sut_ord, arr);
+        float *out = act_into_float_arr(sel_cards + i, sut_ord, arr);
 #ifdef DEBUG
         if (!out)
         {
@@ -535,7 +432,7 @@ static card_t act(agent_t *agent)
 #endif
     if (intern->train)
     {
-        float *out = act_into_inp_arr(&c_m, sut_ord, arr);
+        float *out = act_into_float_arr(&c_m, sut_ord, arr);
 #ifdef DEBUG
         if (!out)
         {
@@ -543,20 +440,11 @@ static card_t act(agent_t *agent)
             exit(-5);
         }
 #endif
-        rebf->i_end++;
+        intern_rep_buf_add(rebf, stat_act);
     }
     return c_m;
 }
 
-static void update_q(intern_re_buff_t *rebf, FLT_TYP reward, FLT_TYP disc_factor)
-{
-    FLT_TYP disc_reward = reward;
-    for (int i = rebf->i_end - 1; i >= rebf->i_bgn; i--)
-    {
-        *mat_at(&rebf->q, i, 0) += disc_reward;
-        disc_reward *= disc_factor;
-    }
-}
 
 static void trick_gain(agent_t *agent, FLT_TYP reward)
 {
@@ -568,15 +456,9 @@ static void trick_gain(agent_t *agent, FLT_TYP reward)
 
     if (!intern->train)
         return;
-
-    update_q(&intern->rebf_trumpleads, reward, intern->gamma);
-    update_q(&intern->rebf_distinct, reward, intern->gamma);
-    update_q(&intern->rebf_leader, reward, intern->gamma);
-}
-
-static inline void eq_i(intern_re_buff_t *rebf)
-{
-    rebf->i_bgn = rebf->i_end;
+    intern_rep_buf_update(&intern->rebf_trumpleads, reward, intern->rl_mdls->rl_calltrump.discunt_factor);
+    intern_rep_buf_update(&intern->rebf_distinct, reward, intern->rl_mdls->rl_distinct.discunt_factor);
+    intern_rep_buf_update(&intern->rebf_leader, reward, intern->rl_mdls->rl_leader.discunt_factor);
 }
 
 static void round_gain(agent_t *agent, float reward)
@@ -587,31 +469,12 @@ static void round_gain(agent_t *agent, float reward)
     if (!intern->train)
         return;
 
-    update_q(&intern->rebf_calltrump, reward, 0);
-    eq_i(&intern->rebf_calltrump);
-    eq_i(&intern->rebf_distinct);
-    eq_i(&intern->rebf_trumpleads);
-    eq_i(&intern->rebf_leader);
-}
+    intern_rep_buf_update(&intern->rebf_calltrump, reward, 0);
 
-static inline void reset_re_buff(intern_re_buff_t *rebf)
-{
-    rebf->i_bgn = rebf->i_end = 0;
-    mat_fill_zero(&rebf->q);
-}
-
-static inline void insert_into_replay_buff(RL_replay_buffer_t *m_rb, intern_re_buff_t *rebf)
-{
-    if (rebf->i_end == 0)
-        return;
-    mat_t sta, q;
-    mat_init_prealloc(&sta, rebf->sta.arr, rebf->i_end, rebf->sta.d2);
-    mat_init_prealloc(&q, rebf->q.arr, rebf->i_end, rebf->q.d2);
-    RL_replay_buffer_append(m_rb, &sta, &q);
-#ifdef DEBUG
-    log_msg(LOG_DBG, "avg rebf.q: %g\n", mat_sum(&q) / q.d1);
-#endif
-    reset_re_buff(rebf);
+    intern_rep_buf_new_round(&intern->rebf_calltrump);
+    intern_rep_buf_new_round(&intern->rebf_distinct);
+    intern_rep_buf_new_round(&intern->rebf_trumpleads);
+    intern_rep_buf_new_round(&intern->rebf_leader);
 }
 
 static void finalize_episode(agent_t *agent, const void *param)
@@ -620,10 +483,10 @@ static void finalize_episode(agent_t *agent, const void *param)
     agent_RL_intern_t *intern = (agent_RL_intern_t *)agent->intern;
     if (intern->train)
     {
-        insert_into_replay_buff(&intern->rl_mdls->rl_calltrump.replay_buff, &intern->rebf_calltrump);
-        insert_into_replay_buff(&intern->rl_mdls->rl_distinct.replay_buff, &intern->rebf_distinct);
-        insert_into_replay_buff(&intern->rl_mdls->rl_trumpleads.replay_buff, &intern->rebf_trumpleads);
-        insert_into_replay_buff(&intern->rl_mdls->rl_leader.replay_buff, &intern->rebf_leader);
+        intern_rep_buf_append_to_replay_buff(&intern->rebf_calltrump, &intern->rl_mdls->rl_calltrump.replay_buff);
+        intern_rep_buf_append_to_replay_buff(&intern->rebf_distinct, &intern->rl_mdls->rl_distinct.replay_buff);
+        intern_rep_buf_append_to_replay_buff(&intern->rebf_trumpleads, &intern->rl_mdls->rl_trumpleads.replay_buff);
+        intern_rep_buf_append_to_replay_buff(&intern->rebf_leader, &intern->rl_mdls->rl_leader.replay_buff);
     }
 }
 
@@ -634,7 +497,8 @@ void agent_RL_construct_param_clear(agent_RL_construct_param_t *param)
     param->init_eps = -1;
     param->eps_offset = INT32_MAX;
     param->train = -1;
-    param->gamma = -1;
+    param->reset_training_counter = -1;
+    param->discunt_factor = -1;
     log_msg(LOG_DBG, "agent_RL_construct_param_clear done.\n");
 }
 
@@ -682,4 +546,9 @@ static char *agent_RL_to_str(const agent_t *RL_agent, char *str)
 }
 
 const agent_class agent_cls_RL =
-    {.uniq_id = 1, .name = "RL", .construct = constructor, .destruct = destructor, .init_episode = init_episode, .init_round = NULL, .call_trump = call_trump, .act = act, .trick_gain = trick_gain, .round_gain = round_gain, .finalize_episode = finalize_episode, .to_string = agent_RL_to_str};
+    {.uniq_id = 1, .name = "RL",
+    .construct = constructor, .destruct = destructor, 
+    .init_episode = init_episode, .init_round = NULL, 
+    .call_trump = call_trump, .act = act, 
+    .trick_gain = trick_gain, .round_gain = round_gain, 
+    .finalize_episode = finalize_episode, .to_string = agent_RL_to_str};

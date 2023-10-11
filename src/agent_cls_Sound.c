@@ -7,22 +7,66 @@
 
 #include "game.h"
 #include "log.h"
+#include "intern_rep_buf.h"
+#include "stat_act_array.h"
 
-static agent_t *constructor(agent_t *agent, const void *param)
+typedef struct agent_Snd_intern_struct
+{
+    agent_RL_models_t *rl_mdls;
+    intern_rep_buf_t rebf_calltrump;
+    intern_rep_buf_t rebf_distinct;
+    intern_rep_buf_t rebf_trumpleads;
+    intern_rep_buf_t rebf_leader;
+    bool imitation;
+    FLT_TYP stat_act[6 * N_CRD];
+} agent_Snd_intern_t;
+
+static agent_t *constructor(agent_t *agent, const void *inp_param)
 {
     assert(agent);
-    agent->intern = NULL;
+    if (inp_param)
+        agent->intern = calloc(1, sizeof(agent_Snd_intern_t));
+    else
+    {
+        agent->intern = NULL;
+        return agent;
+    }
+    agent_Snd_intern_t *intern = (agent_Snd_intern_t *)agent->intern;
+    agent_Snd_construct_param_t *param = (agent_Snd_construct_param_t *)inp_param;
+
+    intern->imitation = false;
+
+    if (param->training >= 0)
+        intern->imitation = (bool)param->training;
+
+    intern->rl_mdls = param->rl_mdls;
+
+    intern_rep_buf_construct(&intern->rebf_calltrump, N_ROUNDS, N_CRD + N_SUT);
+    intern_rep_buf_construct(&intern->rebf_distinct, N_ROUNDS * N_TRICKS, 6 * N_CRD);
+    intern_rep_buf_construct(&intern->rebf_leader, N_ROUNDS * N_TRICKS, 3 * N_CRD);
+    intern_rep_buf_construct(&intern->rebf_trumpleads, N_ROUNDS * N_TRICKS, 6 * N_CRD);
+
     return agent;
 }
 
 static void destructor(agent_t *agent)
 {
-    agent->intern = NULL;
+    if (agent->intern)
+    {
+        agent_Snd_intern_t *intern = (agent_Snd_intern_t *)agent->intern;
+        intern_rep_buf_destruct(&intern->rebf_calltrump);
+        intern_rep_buf_destruct(&intern->rebf_distinct);
+        intern_rep_buf_destruct(&intern->rebf_leader);
+        intern_rep_buf_destruct(&intern->rebf_trumpleads);
+        free(agent->intern);
+        agent->intern = NULL;
+    }
 }
 
 static suit_t call_trump(agent_t *agent)
 {
     hand_t *hand = agent->state->p_hand;
+    agent_Snd_intern_t *intern = (agent_Snd_intern_t *)agent->intern;
 
     float scr[N_SUT];
 
@@ -39,7 +83,7 @@ static suit_t call_trump(agent_t *agent)
     char str_bf[256] = {0};
     char bf[16] = {0};
     sprintf(str_bf, "%s call_trump scores: ", agent->name);
-    for(suit_t s = 0; s < N_SUT; s++)
+    for (suit_t s = 0; s < N_SUT; s++)
     {
         sprintf(bf, "%c:%4.2f ", SUT_CHR[s], scr[s]);
         strcat(str_bf, bf);
@@ -59,6 +103,12 @@ static suit_t call_trump(agent_t *agent)
         else if (scr[t] == max_scr && hand->len_sut[t] < hand->len_sut[trump])
             trump = t;
     }
+    if (intern && intern->imitation)
+    {
+        calltrump_stat_act_into_float_arr(agent->state, trump, intern->stat_act);
+        intern_rep_buf_add(&intern->rebf_calltrump, intern->stat_act);
+    }
+
     return trump;
 }
 
@@ -126,9 +176,21 @@ static inline card_t min_of_hand_sut_last(const hand_t *hand, suit_t t, int s_in
     return hand_min(hand, t);
 }
 
+static inline intern_rep_buf_t *choose_buff(agent_Snd_intern_t *intern, suit_t led, suit_t trump)
+{
+    assert(intern);
+    if (led == NON_SUT)
+        return &intern->rebf_leader;
+    if (led == trump)
+        return &intern->rebf_trumpleads;
+    return &intern->rebf_distinct;
+}
+
 static card_t act(agent_t *agent)
 {
     assert(agent);
+    agent_Snd_intern_t *intern = (agent_Snd_intern_t *)agent->intern;
+
     hand_t *hand = agent->state->p_hand;
     table_t *table = agent->state->p_table;
     hand_t *played = agent->state->p_played;
@@ -160,19 +222,17 @@ static card_t act(agent_t *agent)
                 continue;
             a = max_in_sut_above_it_all_played(hand, played, s);
             if (!card_is_none(&a))
-                return a;
+                break;
         }
-        return min_of_hand_sut_last(hand, trump, s_ind);
     }
     break;
     case 1:
     {
         a = hand_min_max(hand, &op_b_c, led, trump);
         if (!card_is_none(&a))
-            return a;
+            break;
         if (hand_has_suit(hand, led))
-            return hand_min(hand, led);
-        return min_of_hand_sut_last(hand, trump, s_ind);
+            a = hand_min(hand, led);
     }
     break;
     case 2:
@@ -182,7 +242,7 @@ static card_t act(agent_t *agent)
         {
             a = hand_min_max(hand, &op_b_c, led, trump);
             if (!card_is_none(&a))
-                return a;
+                break;
         }
         if (hand_has_suit(hand, led))
         {
@@ -190,11 +250,10 @@ static card_t act(agent_t *agent)
             {
                 a = max_in_sut_above_it_all_played(hand, played, led);
                 if (!card_is_none(&a))
-                    return a;
+                    break;
             }
-            return hand_min(hand, led);
+            a = hand_min(hand, led);
         }
-        return min_of_hand_sut_last(hand, trump, s_ind);
     }
     break;
     case 3:
@@ -205,16 +264,83 @@ static card_t act(agent_t *agent)
         {
             a = hand_min_max(hand, &op_b_c, led, trump);
             if (!card_is_none(&a))
-                return a;
+                break;
         }
         if (hand_has_suit(hand, led))
-            return hand_min(hand, led);
-        return min_of_hand_sut_last(hand, trump, s_ind);
+            a = hand_min(hand, led);
     }
     break;
     }
+    if (card_is_none(&a))
+        a = min_of_hand_sut_last(hand, trump, s_ind);
+
+    if (intern && intern->imitation)
+    {
+        stat_act_into_float_arr(agent->state, &a, intern->stat_act);
+        intern_rep_buf_add(choose_buff(intern, led, trump), intern->stat_act);
+    }
+
     return a;
 }
 
+void agent_Snd_construct_param_clear(agent_Snd_construct_param_t *param)
+{
+    assert(param);
+    param->training = -1;
+    param->rl_mdls = NULL;
+}
+
+
+static void trick_gain(agent_t *agent, FLT_TYP reward)
+{
+    if (reward == 0)
+        return;
+
+    assert(agent);
+    agent_Snd_intern_t *intern = (agent_Snd_intern_t *)agent->intern;
+
+    if (!intern || !intern->imitation)
+        return;
+    intern_rep_buf_update(&intern->rebf_trumpleads, reward, intern->rl_mdls->rl_calltrump.discunt_factor);
+    intern_rep_buf_update(&intern->rebf_distinct, reward, intern->rl_mdls->rl_distinct.discunt_factor);
+    intern_rep_buf_update(&intern->rebf_leader, reward, intern->rl_mdls->rl_leader.discunt_factor);
+}
+
+static void round_gain(agent_t *agent, float reward)
+{
+    assert(agent);
+    agent_Snd_intern_t *intern = (agent_Snd_intern_t *)agent->intern;
+
+    if (!intern || !intern->imitation)
+        return;
+
+    intern_rep_buf_update(&intern->rebf_calltrump, reward, 0);
+
+    intern_rep_buf_new_round(&intern->rebf_calltrump);
+    intern_rep_buf_new_round(&intern->rebf_distinct);
+    intern_rep_buf_new_round(&intern->rebf_trumpleads);
+    intern_rep_buf_new_round(&intern->rebf_leader);
+}
+
+static void finalize_episode(agent_t *agent, const void *param)
+{
+    assert(agent);
+    agent_Snd_intern_t *intern = (agent_Snd_intern_t *)agent->intern;
+    if (intern && intern->imitation)
+    {
+        intern_rep_buf_append_to_replay_buff(&intern->rebf_calltrump, &intern->rl_mdls->rl_calltrump.replay_buff);
+        intern_rep_buf_append_to_replay_buff(&intern->rebf_distinct, &intern->rl_mdls->rl_distinct.replay_buff);
+        intern_rep_buf_append_to_replay_buff(&intern->rebf_trumpleads, &intern->rl_mdls->rl_trumpleads.replay_buff);
+        intern_rep_buf_append_to_replay_buff(&intern->rebf_leader, &intern->rl_mdls->rl_leader.replay_buff);
+    }
+}
+
+
 const agent_class agent_cls_Sound =
-    {.uniq_id = 10, .name = "SOUND", .construct = constructor, .destruct = destructor, .init_episode = NULL, .init_round = NULL, .call_trump = call_trump, .act = act, .trick_gain = NULL, .round_gain = NULL, .finalize_episode = NULL, .to_string = NULL};
+    {.uniq_id = 10, .name = "SOUND", 
+    .construct = constructor, .destruct = destructor, 
+    .init_episode = NULL, .init_round = NULL, 
+    .call_trump = call_trump, .act = act, 
+    .trick_gain = trick_gain, .round_gain = round_gain, 
+    .finalize_episode = finalize_episode, 
+    .to_string = NULL};

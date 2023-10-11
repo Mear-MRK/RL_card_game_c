@@ -12,9 +12,11 @@ typedef struct agent_RL_models_struct
     RL_model_t rl_distinct;   // led != trump
     RL_model_t rl_trumpleads; // led == trump
     RL_model_t rl_leader;     // led == NON_SUT
+    bool new;
 } agent_RL_models_t;
 
-agent_RL_models_t *agent_RL_models_construct(agent_RL_models_t *rl_models, unsigned nbr_episodes_in_buff);
+agent_RL_models_t *agent_RL_models_construct(agent_RL_models_t *rl_models,
+                                             unsigned nbr_episodes_in_buff);
 int agent_RL_models_load(agent_RL_models_t *RL_models,
                          const char *filepath,
                          const nn_optim_class *optim_cls);
@@ -31,7 +33,8 @@ typedef struct agent_RL_construct_param_struct
     float init_eps;
     int eps_offset;
     float eps_delta;
-    float gamma; // discunt factor
+    int reset_training_counter;
+    FLT_TYP discunt_factor;
 } agent_RL_construct_param_t;
 
 void agent_RL_construct_param_clear(agent_RL_construct_param_t *param);

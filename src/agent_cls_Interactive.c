@@ -49,13 +49,13 @@ static suit_t call_trump(agent_t *agent)
     return suit_from_str(trump_str);
 }
 
-static char *table_show_str(table_t *table, char *show_str, int player_id)
+static char *table_show_str(const table_t *table, char *show_str, int player_id)
 {
     assert(table);
     assert(show_str);
     assert(player_id >= 0 && player_id < table->nbr_players);
     char buff[32], buff_1[32], buff_2[32];
-    table_cleanse(table);
+    // table_cleanse(table);
     int op_n = (player_id + 1) % table->nbr_players;
     int op_b = (player_id + 3) % table->nbr_players;
     int co = (player_id + 2) % table->nbr_players;

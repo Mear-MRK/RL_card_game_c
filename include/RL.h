@@ -8,7 +8,8 @@
 typedef struct RL_replay_buffer_struct
 {
     IND_TYP capacity;
-    IND_TYP width;
+    IND_TYP stat_width;
+    IND_TYP act_width;
     IND_TYP i;
     bool is_full;
     mat_t state_act;
@@ -24,7 +25,7 @@ typedef struct RL_model_struct
     FLT_TYP discunt_factor;
 } RL_model_t;
 
-RL_replay_buffer_t *RL_replay_buffer_construct(RL_replay_buffer_t *re_buff, IND_TYP capacity, IND_TYP statact_width);
+RL_replay_buffer_t *RL_replay_buffer_construct(RL_replay_buffer_t *re_buff, IND_TYP capacity, IND_TYP stat_width, IND_TYP act_width);
 void RL_replay_buffer_destruct(RL_replay_buffer_t *re_buff);
 RL_replay_buffer_t *RL_replay_buffer_clear(RL_replay_buffer_t *re_buff);
 int RL_replay_buffer_append(RL_replay_buffer_t *re_buff, const mat_t *statacts, const mat_t *qs);
@@ -40,7 +41,8 @@ typedef struct RL_training_params_struct
 
 void RL_trianing_params_clear(RL_training_params_t *params);
 
-void RL_train(RL_model_t *rl_model, const RL_training_params_t *params);
+void RL_Q_train(RL_model_t *q_model, const RL_training_params_t *params);
+void RL_policy_train(RL_model_t *policy_model, const RL_training_params_t *params);
 
 int RL_save_models(const RL_model_t *rl_models_arr[], int nbr_models, const char *filepath);
 int RL_load_models(RL_model_t *rl_models_arr[], const char *filepath);

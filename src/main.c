@@ -46,7 +46,7 @@ static bool train_RL_model(RL_model_t *rl_mdl, float fill_factor, RL_training_pa
     bool train = fill_factor == 0 || RL_replay_buffer_near_full(&rl_mdl->replay_buff, fill_factor);
     if (train)
     {
-        RL_train(rl_mdl, param);
+        RL_Q_train(rl_mdl, param);
         RL_replay_buffer_clear(&rl_mdl->replay_buff);
         rl_mdl->nbr_training++;
     }
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     time_t main_began_time = time(NULL);
 
     log_type log_level = LOG_WRN;
-    unsigned nbr_episodes = 3000;
+    unsigned nbr_episodes = 10000;
     char inp_agent_str[] = "nnnn";
     char models_filepath[512] = {0};
     strcpy(models_filepath, "models.dat");
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
         nbr_episodes = strtol(argv[1], NULL, 10);
         assert(nbr_episodes > 0);
     }
-    unsigned nbr_episodes_in_re_buff = MIN(nbr_episodes / 10, 1000);
+    unsigned nbr_episodes_in_re_buff = MIN(nbr_episodes / 5, 10000);
     if (!nbr_episodes_in_re_buff)
         nbr_episodes_in_re_buff = 1;
     unsigned nbr_hid_layers = 2;
@@ -131,12 +131,12 @@ int main(int argc, char *argv[])
     ag_RL_cnst_param.rl_models = &rl_models;
     ag_RL_cnst_param.train = training;
     ag_RL_cnst_param.reset_training_counter = reset_training_counter;
-    ag_RL_cnst_param.discunt_factor = 0.1; // only applies to new models
+    ag_RL_cnst_param.discunt_factor = 1; // only applies to new models
 
     RL_training_params_t train_param;
     RL_trianing_params_clear(&train_param);
     train_param.nbr_epochs = 1;
-    train_param.batch_size = 39;
+    train_param.batch_size = 13*3;
 
     agent_Snd_construct_param_t ag_Snd_cnst_param;
     agent_Snd_construct_param_clear(&ag_Snd_cnst_param);
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
     unsigned scores[N_TEAMS] = {0};
 
     bool auto_save = true;
-    double auto_save_interval = 5 * 60; // 5min
+    double auto_save_interval = 15 * 60; // 15min
     bool show_progress = true;
     float progress_inc = 10;
     float progress_limit = progress_inc;
@@ -384,9 +384,8 @@ int main(int argc, char *argv[])
     }
 
     for (unsigned pl = 0; pl < N_PLAYERS; pl++)
-    {
         agent_destruct(agent + pl);
-    }
+    
     deck_destruct(&deck);
 
     agent_RL_models_destruct(&rl_models);

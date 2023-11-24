@@ -29,7 +29,7 @@ typedef struct agent_RL_intern_struct
     float flt_arr[6 * N_CRD];
 } agent_RL_intern_t;
 
-static void construct_nn_model(nn_model_t *model, int inp_sz, unsigned nbr_hid_layers,
+static void construct_Q_nn_model(nn_model_t *model, int inp_sz, unsigned nbr_hid_layers,
                                const nn_activ_t *activ, FLT_TYP dropout)
 {
     assert(model);
@@ -39,20 +39,20 @@ static void construct_nn_model(nn_model_t *model, int inp_sz, unsigned nbr_hid_l
     *model = nn_model_NULL;
     nn_model_construct(model, (int)nbr_hid_layers + 1, inp_sz);
     nn_model_set_rnd_gens(model, pcg_uint32, pcg_flt);
-    int hl_sz = inp_sz / 2;
+    int hl_sz = inp_sz * 2;
     nn_layer_t layer = nn_layer_NULL;
     for (unsigned hl = 0; hl < nbr_hid_layers; hl++)
     {
-        hl_sz = (hl_sz < 8) ? 8 : hl_sz;
+        hl_sz = (hl_sz < 4) ? 4 : hl_sz;
         nn_layer_init(&layer, hl_sz, *activ, dropout);
-        nn_model_add(model, &layer);
+        nn_model_append(model, &layer);
         hl_sz /= 2;
     }
     // Output layer
-    nn_layer_init(&layer, 1, nn_activ_ID, dropout);
-    nn_model_add(model, &layer);
+    nn_layer_init(&layer, 1, nn_activ_ID, 0);
+    nn_model_append(model, &layer);
     nn_model_init_rnd(model, 0.1, 0);
-    log_msg(LOG_DBG, "construct_nn_model done.\n");
+    log_msg(LOG_DBG, "construct_Q_nn_model done.\n");
 }
 
 static void construct_RL(RL_model_t *rl, IND_TYP inp_sz, unsigned max_nbr_smpl)
@@ -128,22 +128,22 @@ agent_RL_models_t *agent_RL_models_nn_construct(agent_RL_models_t *rl_models,
 
     RL_model_t *rl;
     rl = &rl_models->rl_calltrump;
-    construct_nn_model(&rl->model, rl->replay_buff.width, nbr_hid_layers,
+    construct_Q_nn_model(&rl->model, rl->replay_buff.stat_width, nbr_hid_layers,
                        activ, dropout);
     nn_optim_construct(&rl->optim, optim_cls, &rl->model);
 
     rl = &rl_models->rl_distinct;
-    construct_nn_model(&rl->model, rl->replay_buff.width, nbr_hid_layers,
+    construct_Q_nn_model(&rl->model, rl->replay_buff.stat_width, nbr_hid_layers,
                        activ, dropout);
     nn_optim_construct(&rl->optim, optim_cls, &rl->model);
 
     rl = &rl_models->rl_trumpleads;
-    construct_nn_model(&rl->model, rl->replay_buff.width, nbr_hid_layers,
+    construct_Q_nn_model(&rl->model, rl->replay_buff.stat_width, nbr_hid_layers,
                        activ, dropout);
     nn_optim_construct(&rl->optim, optim_cls, &rl->model);
 
     rl = &rl_models->rl_leader;
-    construct_nn_model(&rl->model, rl->replay_buff.width, nbr_hid_layers,
+    construct_Q_nn_model(&rl->model, rl->replay_buff.stat_width, nbr_hid_layers,
                        activ, dropout);
     nn_optim_construct(&rl->optim, optim_cls, &rl->model);
     rl_models->new = true;

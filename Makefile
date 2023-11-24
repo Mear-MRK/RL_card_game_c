@@ -16,7 +16,7 @@ CC = gcc
 LD = gcc
 AR = ar
 
-COM_CFLAGS = -std=c11 -Wall -Wextra -I$(INCPATH) $(EXT_INC_FLAGS) -DINDEX_T=INT32 -DFEILD_T=FLT32
+COM_CFLAGS = -std=c11 -Wall -Wextra -I$(INCPATH) $(EXT_INC_FLAGS) -DFLT32=32
 OPT_CFLAGS = -flto -O3
 
 MKL_LD_LIBS = -lmkl_rt -lm

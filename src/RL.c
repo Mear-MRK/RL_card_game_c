@@ -10,16 +10,19 @@
 
 #define MIN(x, y) (((x) <= (y)) ? (x) : (y))
 
-RL_replay_buffer_t *RL_replay_buffer_construct(RL_replay_buffer_t *re_buff, IND_TYP capacity, IND_TYP stat_act_width)
+RL_replay_buffer_t *RL_replay_buffer_construct(
+    RL_replay_buffer_t *re_buff, IND_TYP capacity, IND_TYP stat_width, IND_TYP act_width)
 {
     assert(re_buff);
     assert(capacity > 0);
-    assert(stat_act_width > 0);
+    assert(stat_width > 0);
+    assert(act_width > 0);
     re_buff->i = 0;
-    mat_construct(&re_buff->state_act, capacity, stat_act_width);
+    mat_construct(&re_buff->state_act, capacity, stat_width + act_width);
     mat_construct(&re_buff->q, capacity, 1);
     re_buff->capacity = capacity;
-    re_buff->width = stat_act_width;
+    re_buff->stat_width = stat_width;
+    re_buff->act_width = act_width;
     re_buff->is_full = false;
     log_msg(LOG_DBG, "RL_replay_buffer_construct done.\n");
     return re_buff;
@@ -74,13 +77,13 @@ void RL_trianing_params_clear(RL_training_params_t *params)
     params->shuffle = -1;
 }
 
-void RL_train(RL_model_t *rl_model, const RL_training_params_t *params)
+void RL_Q_train(RL_model_t *rl_model, const RL_training_params_t *params)
 {
     assert(rl_model);
-    if(rl_model->replay_buff.i == 0)
+    if (rl_model->replay_buff.i == 0)
         return;
 #ifdef DEBUG
-    log_msg(LOG_DBG, "avg replay_buff.q: %g\n", mat_sum(&rl_model->replay_buff.q)/rl_model->replay_buff.i);
+    log_msg(LOG_DBG, "avg replay_buff.q: %g\n", mat_sum(&rl_model->replay_buff.q) / rl_model->replay_buff.i);
 #endif
     int nbr_epochs = 3;
     int batch_size = 32;
@@ -97,18 +100,59 @@ void RL_train(RL_model_t *rl_model, const RL_training_params_t *params)
     mat_t data_x;
     mat_t trg;
     mat_init_prealloc(&data_x, rl_model->replay_buff.state_act.arr,
-                      rl_model->replay_buff.i, 
+                      rl_model->replay_buff.i,
                       rl_model->replay_buff.state_act.d2);
     mat_init_prealloc(&trg, rl_model->replay_buff.q.arr,
-                      rl_model->replay_buff.i, 
+                      rl_model->replay_buff.i,
                       rl_model->replay_buff.q.d2);
 
     nn_model_train(&rl_model->model,
-                   &data_x, &trg,
+                   &data_x, &trg, NULL,
                    batch_size, nbr_epochs, shuffle,
-                   &rl_model->optim, nn_err_MSE);
+                   &rl_model->optim, nn_loss_MSE);
 
     RL_replay_buffer_clear(&rl_model->replay_buff);
+}
+
+void RL_policy_train(RL_model_t *policy_model, const RL_training_params_t *params)
+{
+    assert(policy_model);
+    if (policy_model->replay_buff.i == 0)
+        return;
+#ifdef DEBUG
+    log_msg(LOG_DBG, "avg replay_buff.q: %g\n", mat_sum(&rl_model->replay_buff.q) / rl_model->replay_buff.i);
+#endif
+    int nbr_epochs = 3;
+    int batch_size = 32;
+    bool shuffle = true;
+    if (params)
+    {
+        if (params->nbr_epochs > 0)
+            nbr_epochs = params->nbr_epochs;
+        if (params->batch_size > 0)
+            batch_size = params->batch_size;
+        if (params->shuffle >= 0)
+            shuffle = (bool)params->shuffle;
+    }
+    mat_t data_x;
+    mat_t label;
+    vec_t weight;
+    mat_init_prealloc(&data_x, policy_model->replay_buff.state_act.arr,
+                      policy_model->replay_buff.i,
+                      policy_model->replay_buff.state_act.d2);
+    mat_init_prealloc(&label, policy_model->replay_buff.state_act.arr,
+                      policy_model->replay_buff.i,
+                      policy_model->replay_buff.state_act.d2);
+    mat_init_prealloc(&weight, policy_model->replay_buff.q.arr,
+                      policy_model->replay_buff.i,
+                      policy_model->replay_buff.q.d2);
+
+    nn_model_train(&policy_model->model,
+                   &data_x, &label, NULL,
+                   batch_size, nbr_epochs, shuffle,
+                   &policy_model->optim, nn_loss_MSE);
+
+    RL_replay_buffer_clear(&policy_model->replay_buff);
 }
 
 static inline uint8_t *wrt2byt(const void *obj, size_t sz, uint8_t *bytes)

@@ -20,7 +20,7 @@
 #include "pcg.h"
 
 // Robert Jenkins' 96 bit Mix Function
-static uint64_t rob_jenk_mix(uint64_t a, uint16_t b, uint64_t c)
+static uint64_t rob_jenk_mix(uint64_t a, uint16 b, uint64_t c)
 {
     a = a - b;
     a = a - c;

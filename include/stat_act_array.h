@@ -11,16 +11,16 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-float *calltrump_stat_into_float_arr(const state_t *state, float *arr);
+float *calltrump_stat_into_float_arr(const state *state, float *arr);
 
-float *calltrump_act_into_float_arr(suit_t a, float *arr);
+float *calltrump_act_into_float_arr(suit a, float *arr);
 
-float *calltrump_stat_act_into_float_arr(const state_t *state, suit_t a, float *arr);
+float *calltrump_stat_act_into_float_arr(const state *state, suit a, float *arr);
 
-suit_t *sort_sut_ord(suit_t sut_ord[N_SUT], suit_t led, suit_t trump);
+suit *sort_sut_ord(suit sut_ord[N_SUT], suit led, suit trump);
 
-float *stat_into_float_arr(const state_t *state, const suit_t sut_ord[N_SUT], float *arr);
+float *stat_into_float_arr(const state *state, const suit sut_ord[N_SUT], float *arr);
 
-float *act_into_float_arr(const card_t *a, const suit_t sut_ord[N_SUT], float *arr);
+float *act_into_float_arr(const card *a, const suit sut_ord[N_SUT], float *arr);
 
-float *stat_act_into_float_arr(const state_t *state, const card_t *a, float *arr);
+float *stat_act_into_float_arr(const state *state, const card *a, float *arr);

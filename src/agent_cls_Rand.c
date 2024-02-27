@@ -6,65 +6,73 @@
 
 #include "pcg.h"
 
-static agent_t *constructor(agent_t *agent, const void *param)
+
+typedef struct agent_cls_Rand_private
+{
+    card card_stack[N_CRD];
+    uint32_rnd_gen_func ui32_rnd_gen;
+} agent_cls_Rand_private;
+
+static agent *constructor(agent *agent, const void *param)
 {
     assert(agent);
-    agent->intern = calloc(1, sizeof(agent_cls_Rand_intern_t));
-    assert(agent->intern);
-    agent_cls_Rand_intern_t *intern = (agent_cls_Rand_intern_t *)agent->intern;
-    intern->ui32_rnd_gen = pcg_uint32;
+    agent->private = calloc(1, sizeof(agent_cls_Rand_private));
+    assert(agent->private);
+    agent_cls_Rand_private *private = (agent_cls_Rand_private *)agent->private;
+    private->ui32_rnd_gen = pcg_uint32;
     if (param)
     {
-        agent_cls_Rand_construct_param_t *ag_rnd_param = (agent_cls_Rand_construct_param_t *)param;
-        if (ag_rnd_param->u32_rnd)
-            intern->ui32_rnd_gen = (ag_rnd_param->u32_rnd);
+        agent_cls_Rand_construct_param *ag_rnd_param = (agent_cls_Rand_construct_param *)param;
+        if (ag_rnd_param->ui32_rnd_gen)
+            private->ui32_rnd_gen = ag_rnd_param->ui32_rnd_gen;
     }
     return agent;
 }
 
-static void destructor(agent_t *agent)
-{
-    free(agent->intern);
-    agent->intern = NULL;
-}
-
-static suit_t call_trump(agent_t *agent)
-{
-    agent_cls_Rand_intern_t *intern = (agent_cls_Rand_intern_t *)agent->intern;
-    return intern->ui32_rnd_gen() % N_SUT;
-}
-
-static card_t act(agent_t *agent)
+static void destructor(agent *agent)
 {
     assert(agent);
-    hand_t *hand = agent->state->p_hand;
-    suit_t led = agent->state->p_table->led;
+    free(agent->private);
+    agent->private = NULL;
+}
 
-    agent_cls_Rand_intern_t *intern = (agent_cls_Rand_intern_t *)agent->intern;
+static suit call_trump(agent *agent)
+{
+    agent_cls_Rand_private *private = (agent_cls_Rand_private *)agent->private;
+    return private->ui32_rnd_gen() % N_SUT;
+}
+
+static card act(agent *agent)
+{
+    assert(agent);
+    hand *hand = agent->state->p_hand;
+    suit led = agent->state->p_table->led;
+
+    agent_cls_Rand_private *private = (agent_cls_Rand_private *)agent->private;
     if (led != NON_SUT && hand->len_sut[led])
     {
         bool sut_select[N_SUT] = {false};
         sut_select[led] = true;
-        int nbr_cards = hand_to_card_arr(hand, sut_select, intern->card_stack);
+        int nbr_cards = hand_to_card_arr(hand, sut_select, private->card_stack);
         assert(nbr_cards == hand->len_sut[led]);
-        int r = intern->ui32_rnd_gen() % nbr_cards;
+        int r = private->ui32_rnd_gen() % nbr_cards;
         assert(r >= 0 && r < hand->len_sut[led]);
-        card_t c = intern->card_stack[r];
+        card c = private->card_stack[r];
         return c;
     }
 
-    int nbr_cards = hand_to_card_arr(hand, NULL, intern->card_stack);
+    int nbr_cards = hand_to_card_arr(hand, NULL, private->card_stack);
     assert(nbr_cards > 0 && nbr_cards <= N_CRD);
-    int r = intern->ui32_rnd_gen() % nbr_cards;
+    int r = private->ui32_rnd_gen() % nbr_cards;
     assert(r >= 0 && r < nbr_cards);
-    card_t c = intern->card_stack[r];
+    card c = private->card_stack[r];
     return c;
 }
 
 const agent_class agent_cls_Rand =
-    {.uniq_id = 0, .name = "RANDOM", .construct = constructor, .destruct = destructor, .init_episode = NULL, .init_round = NULL, .call_trump = call_trump, .act = act, .trick_gain = NULL, .round_gain = NULL, .finalize_episode = NULL, .to_string = NULL};
+    {.cls_id = 0, .name = "RANDOM", .construct = constructor, .destruct = destructor, .init_episode = NULL, .init_round = NULL, .call_trump = call_trump, .act = act, .trick_gain = NULL, .round_gain = NULL, .finalize_episode = NULL, .to_string = NULL};
 
-void agent_cls_Rand_construct_param_clear(agent_cls_Rand_construct_param_t *param)
+void agent_cls_Rand_construct_param_clear(agent_cls_Rand_construct_param *param)
 {
-    param->u32_rnd = NULL;
+    param->ui32_rnd_gen = NULL;
 }

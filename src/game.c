@@ -1,6 +1,6 @@
 #include "game.h"
 
-bool is_act_legal(const hand_t *hand, const table_t *table, const card_t *c)
+bool is_act_legal(const hand *hand, const table *table, const card *c)
 {
     if (!card_is_valid(c) || !hand_card_is_in(hand, c))
         return false;
@@ -11,7 +11,7 @@ bool is_act_legal(const hand_t *hand, const table_t *table, const card_t *c)
     return true;
 }
 
-int cmp_card(const card_t *cl, const card_t *cr, suit_t led, suit_t trump)
+int cmp_card(const card *cl, const card *cr, suit led, suit trump)
 {
     if (cl->sut == cr->sut)
     {
@@ -35,10 +35,10 @@ int cmp_card(const card_t *cl, const card_t *cr, suit_t led, suit_t trump)
 }
 
 // Gives the taker player
-unsigned eval_table(table_t *table, suit_t trump)
+unsigned eval_table(table *table, suit trump)
 {
     unsigned m_pl = NON_PLAYER;
-    card_t m_c = NON_CARD;
+    card m_c = NON_CARD;
     for (unsigned pl = 0; pl < N_PLAYERS; pl++)
     {
         if (cmp_card(table->card_arr + pl, &m_c, table->led, trump) > 0)

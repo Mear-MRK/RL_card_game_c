@@ -5,13 +5,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-float *calltrump_stat_into_float_arr(const state_t *state, float *arr)
+float *calltrump_stat_into_float_arr(const state *state, float *arr)
 {
     assert(state);
     assert(arr);
     return hand_to_float(state->p_hand, NULL, NULL, arr);
 }
-float *calltrump_act_into_float_arr(suit_t a, float *arr)
+float *calltrump_act_into_float_arr(suit a, float *arr)
 {
     assert(arr);
     assert(is_suit_valid(a));
@@ -19,15 +19,15 @@ float *calltrump_act_into_float_arr(suit_t a, float *arr)
     arr[a] = 1;
     return arr + N_SUT;
 }
-float *calltrump_stat_act_into_float_arr(const state_t *state, suit_t a, float *arr)
+float *calltrump_stat_act_into_float_arr(const state *state, suit a, float *arr)
 {
     arr = calltrump_stat_into_float_arr(state, arr);
     return calltrump_act_into_float_arr(a, arr);
 }
 
-suit_t *sort_sut_ord(suit_t sut_ord[N_SUT], suit_t led, suit_t trump)
+suit *sort_sut_ord(suit sut_ord[N_SUT], suit led, suit trump)
 {
-    for (suit_t i = 0; i < N_SUT; i++)
+    for (suit i = 0; i < N_SUT; i++)
         sut_ord[i] = i;
     if (led != NON_SUT)
     {
@@ -45,7 +45,7 @@ suit_t *sort_sut_ord(suit_t sut_ord[N_SUT], suit_t led, suit_t trump)
     return sut_ord;
 }
 
-static inline float *table_card_into_float_arr(const table_t *table, unsigned player, const suit_t sut_ord[N_SUT], float *arr)
+static inline float *table_card_into_float_arr(const table *table, unsigned player, const suit sut_ord[N_SUT], float *arr)
 {
     assert(table);
     assert(sut_ord);
@@ -56,16 +56,16 @@ static inline float *table_card_into_float_arr(const table_t *table, unsigned pl
     // unsigned end = (table->leader + table->nbr_cards) % N_PLAYERS;
     // bool passed = (table->leader + table->nbr_cards) / N_PLAYERS;
     // if (player < end && (table->leader <= player || passed))
-    card_t *c = &table->card_arr[player];
+    card *c = &table->card_arr[player];
     if(!card_is_none(c))
     {
-        cid_t i = c->rnk + N_RNK * sut_ord[c->sut];
+        cid i = c->rnk + N_RNK * sut_ord[c->sut];
         arr[i] = 1;
     }
     return arr + N_CRD;
 }
 
-float *stat_into_float_arr(const state_t *state, const suit_t sut_ord[N_SUT], float *arr)
+float *stat_into_float_arr(const state *state, const suit sut_ord[N_SUT], float *arr)
 {
     assert(state);
     assert(arr);
@@ -73,7 +73,7 @@ float *stat_into_float_arr(const state_t *state, const suit_t sut_ord[N_SUT], fl
 
     arr = hand_to_float(state->p_hand, NULL, sut_ord, arr);
     arr = hand_to_float(state->p_played, NULL, sut_ord, arr);
-    const table_t *table = state->p_table;
+    const table *table = state->p_table;
     // leader
     if (table->led == NON_SUT)
         return arr;
@@ -88,7 +88,7 @@ float *stat_into_float_arr(const state_t *state, const suit_t sut_ord[N_SUT], fl
     return arr;
 }
 
-float *act_into_float_arr(const card_t *a, const suit_t sut_ord[N_SUT], float *arr)
+float *act_into_float_arr(const card *a, const suit sut_ord[N_SUT], float *arr)
 {
     assert(arr);
     assert(card_is_valid(a));
@@ -99,9 +99,9 @@ float *act_into_float_arr(const card_t *a, const suit_t sut_ord[N_SUT], float *a
     return arr + N_CRD;
 }
 
-float *stat_act_into_float_arr(const state_t *state, const card_t *a, float *arr)
+float *stat_act_into_float_arr(const state *state, const card *a, float *arr)
 {
-    static suit_t sut_ord[N_SUT];
+    static suit sut_ord[N_SUT];
     sort_sut_ord(sut_ord, state->p_table->led, *state->p_trump);
 
     arr = stat_into_float_arr(state, sut_ord, arr);

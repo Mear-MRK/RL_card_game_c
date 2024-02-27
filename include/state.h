@@ -4,13 +4,13 @@
 #include "hand.h"
 #include "table.h"
 
-typedef struct state_struct
+typedef struct state
 {
 	unsigned play_ord;
-	suit_t *p_trump;
-	hand_t *p_hand;
-	table_t *p_table;
-	hand_t *p_played;
-} state_t;
+	suit *p_trump;
+	hand *p_hand;
+	table *p_table;
+	hand *p_played;
+} state;
 
 #endif /* STATE_H_ */

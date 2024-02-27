@@ -11,7 +11,7 @@ static unsigned rnd(void) {
 
 void deck_test(void) {
 	puts("+++ deck test +++");
-	deck_t deck;
+	deck deck;
 	deck_construct(&deck, N_CRD + 9);
 	char c_s[4];
 	for (int i = 0; i < deck.nbr_cards; i++) {

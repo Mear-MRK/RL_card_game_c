@@ -3,14 +3,14 @@
 #include <assert.h>
 #include <string.h>
 
-hand_t *hand_clear(hand_t *hand)
+hand *hand_clear(hand *hand)
 {
 	assert(hand);
-	memset(hand, 0, sizeof(hand_t));
+	memset(hand, 0, sizeof(hand));
 	return hand;
 }
 
-hand_t *hand_add(hand_t *hand, const card_t *card)
+hand *hand_add(hand *hand, const card *card)
 {
 	assert(hand);
 	assert(card);
@@ -23,7 +23,7 @@ hand_t *hand_add(hand_t *hand, const card_t *card)
 			if (card->rnk < hand->st_card[card->sut][i])
 			{
 				memmove(&hand->st_card[card->sut][i + 1], &hand->st_card[card->sut][i],
-						(hand->len_sut[card->sut] - i) * sizeof(rank_t));
+						(hand->len_sut[card->sut] - i) * sizeof(rank));
 				hand->st_card[card->sut][i] = card->rnk;
 				hand->len_sut[card->sut]++;
 				return hand;
@@ -34,14 +34,14 @@ hand_t *hand_add(hand_t *hand, const card_t *card)
 	return hand;
 }
 
-hand_t *hand_add_cid(hand_t *hand, cid_t cid)
+hand *hand_add_cid(hand *hand, cid cid)
 {
-	card_t c;
+	card c;
 	hand_add(hand, card_from_cid(&c, cid));
 	return hand;
 }
 
-hand_t *hand_remove(hand_t *hand, const card_t *card)
+hand *hand_remove(hand *hand, const card *card)
 {
 	assert(hand);
 	assert(card_is_valid(card));
@@ -51,7 +51,7 @@ hand_t *hand_remove(hand_t *hand, const card_t *card)
 			if (hand->st_card[card->sut][i] == card->rnk)
 			{
 				memmove(&hand->st_card[card->sut][i], &hand->st_card[card->sut][i + 1],
-						(hand->len_sut[card->sut] - i - 1) * sizeof(rank_t));
+						(hand->len_sut[card->sut] - i - 1) * sizeof(rank));
 				break;
 			}
 		hand->len_sut[card->sut]--;
@@ -60,7 +60,7 @@ hand_t *hand_remove(hand_t *hand, const card_t *card)
 	return hand;
 }
 
-hand_t *hand_add_card_arr(hand_t *hand, const card_t *card_arr, int nbr_cards)
+hand *hand_add_card_arr(hand *hand, const card *card_arr, int nbr_cards)
 {
 	assert(hand);
 	assert(card_arr);
@@ -72,7 +72,7 @@ hand_t *hand_add_card_arr(hand_t *hand, const card_t *card_arr, int nbr_cards)
 	return hand;
 }
 
-hand_t *hand_add_cid_arr(hand_t *hand, const cid_t cid[], int nbr_cards)
+hand *hand_add_cid_arr(hand *hand, const cid cid[], int nbr_cards)
 {
 	assert(hand);
 	assert(cid);
@@ -84,9 +84,9 @@ hand_t *hand_add_cid_arr(hand_t *hand, const cid_t cid[], int nbr_cards)
 	return hand;
 }
 
-float *hand_to_float(const hand_t *hand,
+float *hand_to_float(const hand *hand,
 					 const bool *sut_select,
-					 const suit_t *sut_ord,
+					 const suit *sut_ord,
 					 float *flt_arr)
 {
 	assert(hand);
@@ -100,7 +100,7 @@ float *hand_to_float(const hand_t *hand,
 
 	for (int i = 0; i < N_SUT; i++)
 	{
-		suit_t s = (sut_ord) ? sut_ord[i] : i;
+		suit s = (sut_ord) ? sut_ord[i] : i;
 		assert(is_suit_valid(s));
 		if (sut_select && !sut_select[s])
 			continue;
@@ -111,7 +111,7 @@ float *hand_to_float(const hand_t *hand,
 	return flt_arr;
 }
 
-bool hand_card_is_in(const hand_t *hand, const card_t *card)
+bool hand_card_is_in(const hand *hand, const card *card)
 {
 	assert(hand);
 	assert(card);
@@ -120,13 +120,13 @@ bool hand_card_is_in(const hand_t *hand, const card_t *card)
 	return (bool)hand->n_card[card->sut][card->rnk];
 }
 
-int hand_to_card_arr(const hand_t *hand, const bool sut_select[N_SUT], card_t *card_arr)
+int hand_to_card_arr(const hand *hand, const bool sut_select[N_SUT], card *card_arr)
 {
 	assert(hand);
 	assert(card_arr);
 
 	int i = 0;
-	for (suit_t s = 0; s < N_SUT; s++)
+	for (suit s = 0; s < N_SUT; s++)
 	{
 		if (sut_select && !sut_select[s])
 			continue;
@@ -139,17 +139,17 @@ int hand_to_card_arr(const hand_t *hand, const bool sut_select[N_SUT], card_t *c
 	return i;
 }
 
-char *hand_to_str(const hand_t *hand, char *str)
+char *hand_to_str(const hand *hand, char *str)
 {
 	assert(hand);
 	assert(str);
 	int i = 0;
-	for (suit_t s = 0; s < N_SUT; s++)
+	for (suit s = 0; s < N_SUT; s++)
 	{
 		str[i++] = SUT_CHR[s];
 		str[i++] = ':';
 		str[i++] = ' ';
-		for (rank_t r = 0; r < N_RNK; r++)
+		for (rank r = 0; r < N_RNK; r++)
 		{
 			if (hand->n_card[s][r])
 			{
@@ -164,12 +164,12 @@ char *hand_to_str(const hand_t *hand, char *str)
 	return str;
 }
 
-char *hand_to_str_v2(const hand_t *hand, char *str)
+char *hand_to_str_v2(const hand *hand, char *str)
 {
 	assert(hand);
 	assert(str);
 	int i = 0;
-	for (suit_t s = 0; s < N_SUT; s++)
+	for (suit s = 0; s < N_SUT; s++)
 	{
 		str[i++] = SUT_CHR[s];
 		str[i++] = ':';
@@ -188,35 +188,35 @@ char *hand_to_str_v2(const hand_t *hand, char *str)
 	return str;
 }
 
-bool hand_has_suit(const hand_t *hand, suit_t s)
+bool hand_has_suit(const hand *hand, suit s)
 {
 	assert(is_suit_valid(s));
     return (bool) hand->len_sut[s];
 }
 
-card_t hand_min(const hand_t *hand, suit_t s)
+card hand_min(const hand *hand, suit s)
 {
 	assert(hand);
 	assert(is_suit_valid(s));
 	if (!hand_has_suit(hand, s))
 		return NON_CARD;
-	card_t c;
+	card c;
 	card_from_sut_rnk(&c, s, hand->st_card[s][0]);
 	return c;
 }
 
-card_t hand_max(const hand_t *hand, suit_t s)
+card hand_max(const hand *hand, suit s)
 {
 	assert(hand);
 	assert(is_suit_valid(s));
 	if (!hand->len_sut[s])
 		return NON_CARD;
-	card_t c;
+	card c;
 	card_from_sut_rnk(&c, s, hand->st_card[s][hand->len_sut[s] - 1]);
 	return c;
 }
 
-card_t hand_min_max(const hand_t *hand, const card_t *c, suit_t led, suit_t trump)
+card hand_min_max(const hand *hand, const card *c, suit led, suit trump)
 {
 	assert(hand);
 	assert(c);
@@ -227,7 +227,7 @@ card_t hand_min_max(const hand_t *hand, const card_t *c, suit_t led, suit_t trum
 	if (led == NON_SUT)
 		led = c->sut;
 
-	card_t o = NON_CARD;
+	card o = NON_CARD;
 
 	if (c->sut == trump)
 	{

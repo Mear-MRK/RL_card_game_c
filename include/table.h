@@ -2,22 +2,22 @@
 
 #include "card.h"
 
-typedef struct table_struct
+typedef struct table
 {
     unsigned trick_id;
     unsigned leader;
-    suit_t led;
+    suit led;
     unsigned nbr_cards;
     unsigned nbr_players;
-    card_t *card_arr;
+    card *card_arr;
 
-} table_t;
+} table;
 
-table_t *table_init(table_t *table, card_t card_arr[], unsigned nbr_players);
-table_t *table_clear(table_t *table);
-table_t *table_put(table_t *table, unsigned player, const card_t *card);
-char *table_to_str(const table_t *table, char *tbl_str);
-// table_t *table_cleanse(table_t *table);
+table *table_init(table *table, card card_arr[], unsigned nbr_players);
+table *table_clear(table *table);
+table *table_put(table *table, unsigned player, const card *card);
+char *table_to_str(const table *table, char *tbl_str);
+// table *table_cleanse(table *table);
 
-// table_t *table_construct(table_t *, int nbr_players);
-// void table_destruct(table_t *);
+// table *table_construct(table *, int nbr_players);
+// void table_destruct(table *);

@@ -1,10 +1,10 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "hand.h"
 #include "table.h"
-
 
 #define N_PLAYERS 4u
 #define N_TEAMS 2u
@@ -18,6 +18,8 @@
 #define NON_PLAYER 10101u
 
 
-bool is_act_legal(const hand_t *hand, const table_t *table, const card_t *c);
-int cmp_card(const card_t *cl, const card_t *cr, suit_t led, suit_t trump);
-unsigned eval_table(table_t *table, suit_t trump);
+bool is_act_legal(const hand *hand, const table *table, const card *c);
+
+int cmp_card(const card *cl, const card *cr, suit led, suit trump);
+
+unsigned eval_table(table *table, suit trump);

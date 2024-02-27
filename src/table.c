@@ -5,7 +5,7 @@
 
 #define NON_LEADER 1010101u
 
-table_t *table_init(table_t *table, card_t card_arr[], unsigned nbr_players)
+table *table_init(table *table, card card_arr[], unsigned nbr_players)
 {
     assert(table);
     table->trick_id = 0;
@@ -17,7 +17,7 @@ table_t *table_init(table_t *table, card_t card_arr[], unsigned nbr_players)
     return table;
 }
 
-table_t *table_clear(table_t *table)
+table *table_clear(table *table)
 {
     assert(table);
 
@@ -30,7 +30,7 @@ table_t *table_clear(table_t *table)
     return table;
 }
 
-table_t *table_put(table_t *table, unsigned player, const card_t *card)
+table *table_put(table *table, unsigned player, const card *card)
 {
     assert(table);
     assert(player < table->nbr_players);
@@ -47,7 +47,7 @@ table_t *table_put(table_t *table, unsigned player, const card_t *card)
     return table;
 }
 
-// table_t *table_cleanse(table_t *table)
+// table *table_cleanse(table *table)
 // {
 //     assert(table);
 //     assert(table->nbr_players >= table->nbr_cards);
@@ -60,7 +60,7 @@ table_t *table_put(table_t *table, unsigned player, const card_t *card)
 //     return table;
 // }
 
-char *table_to_str(const table_t *table, char *tbl_str)
+char *table_to_str(const table *table, char *tbl_str)
 {
     assert(table);
     assert(tbl_str);

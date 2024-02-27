@@ -12,7 +12,7 @@
 #include "agent.h"
 #include "agent_cls_Rand.h"
 #include "agent_cls_Interactive.h"
-#include "agent_cls_RL.h"
+#include "agent_cls_RL_nn_max_Q.h"
 #include "agent_cls_Sound.h"
 
 #include "log.h"
@@ -28,7 +28,7 @@ static agent_class parse_ag_ch(char ag_ch)
     switch (ag_ch)
     {
     case 'n':
-        return agent_cls_RL;
+        return agent_cls_RL_nn_max_Q;
     case 'r':
         return agent_cls_Rand;
     case 'i':
@@ -41,7 +41,7 @@ static agent_class parse_ag_ch(char ag_ch)
     }
 }
 
-static bool train_RL_model(RL_model_t *rl_mdl, float fill_factor, RL_training_params_t *param)
+static bool train_RL_model(RL_model *rl_mdl, float fill_factor, RL_training_params *param)
 {
     bool train = fill_factor == 0 || RL_replay_buffer_near_full(&rl_mdl->replay_buff, fill_factor);
     if (train)
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
     if (!nbr_episodes_in_re_buff)
         nbr_episodes_in_re_buff = 1;
     unsigned nbr_hid_layers = 2;
-    nn_activ_t activ = nn_activ_SIGMOID;
+    nn_activ activ = nn_activ_SIGMOID;
     float dropout = 0.1;
     nn_optim_class optim_cls = nn_optim_cls_ADAM;
 
@@ -100,48 +100,45 @@ int main(int argc, char *argv[])
 
     pcg_seed(gen_seed());
 
-    hand_t ar_hand[N_PLAYERS];
-    memset(ar_hand, 0, N_PLAYERS * sizeof(hand_t));
+    hand ar_hand[N_PLAYERS];
+    memset(ar_hand, 0, N_PLAYERS * sizeof(hand));
 
-    hand_t played;
+    hand played;
     hand_clear(&played);
 
-    state_t ar_state[N_PLAYERS];
-    memset(ar_state, 0, N_PLAYERS * sizeof(state_t));
+    state ar_state[N_PLAYERS];
+    memset(ar_state, 0, N_PLAYERS * sizeof(state));
 
-    table_t table;
-    card_t tbl[N_PLAYERS];
+    table table;
+    card tbl[N_PLAYERS];
     table_init(&table, tbl, N_PLAYERS);
     table_clear(&table);
     // table_cleanse(&table);
 
-    suit_t trump = NON_SUT;
+    suit trump = NON_SUT;
 
-    agent_t agent[N_PLAYERS];
-    memset(agent, 0, N_PLAYERS * sizeof(agent_t));
+    agent agent[N_PLAYERS];
+    memset(agent, 0, N_PLAYERS * sizeof(agent));
 
-    agent_RL_models_t rl_models;
-    memset(&rl_models, 0, sizeof(agent_RL_models_t));
-    agent_RL_models_construct(&rl_models, nbr_episodes_in_re_buff);
-    if (agent_RL_models_load(&rl_models, models_filepath, &optim_cls))
-        agent_RL_models_nn_construct(&rl_models, nbr_hid_layers, &activ, dropout, &optim_cls);
+    agent_RL_models rl_models;
+    memset(&rl_models, 0, sizeof(agent_RL_models));
+    RL_Q_models_construct(&rl_models, nbr_episodes_in_re_buff);
+    if (RL_Q_models_load(&rl_models, models_filepath, &optim_cls))
+        game_RL_models_nn_construct(&rl_models, nbr_hid_layers, &activ, dropout, &optim_cls);
 
-    agent_RL_construct_param_t ag_RL_cnst_param;
-    agent_RL_construct_param_clear(&ag_RL_cnst_param);
+    agent_RL_max_Q_construct_param ag_RL_cnst_param;
+    agent_RL_max_Q_construct_param_clear(&ag_RL_cnst_param);
     ag_RL_cnst_param.rl_models = &rl_models;
     ag_RL_cnst_param.train = training;
     ag_RL_cnst_param.reset_training_counter = reset_training_counter;
     ag_RL_cnst_param.discunt_factor = 1; // only applies to new models
 
-    RL_training_params_t train_param;
+    RL_training_params train_param;
     RL_trianing_params_clear(&train_param);
     train_param.nbr_epochs = 1;
     train_param.batch_size = 13*3;
 
-    agent_Snd_construct_param_t ag_Snd_cnst_param;
-    agent_Snd_construct_param_clear(&ag_Snd_cnst_param);
-    ag_Snd_cnst_param.rl_mdls = &rl_models;
-    ag_Snd_cnst_param.training = training;
+
 
     for (unsigned pl = 0; pl < N_PLAYERS; pl++)
     {
@@ -155,8 +152,6 @@ int main(int argc, char *argv[])
         param = NULL;
         if (inp_agent_str[pl] == 'n')
             param = &ag_RL_cnst_param;
-        if (inp_agent_str[pl] == 's' && training)
-            param = &ag_Snd_cnst_param;
         agent_construct(agent + pl, &ag_cl, pl, param);
         printf("%s constructed.\n", agent[pl].name);
     }
@@ -169,7 +164,7 @@ int main(int argc, char *argv[])
         log_msg(LOG_INF, "<<<<<\n%s\n>>>>>\n", agent_to_str(agent + pl, str_buff));
     }
 
-    deck_t deck;
+    deck deck;
     deck_construct(&deck, N_CRD);
 
     char buff_str[256] = {0};
@@ -244,7 +239,7 @@ int main(int argc, char *argv[])
                 {
                     unsigned pl = (ord + trick_leader) % N_PLAYERS;
                     ar_state[pl].play_ord = ord;
-                    card_t c = agent_act(agent + pl);
+                    card c = agent_act(agent + pl);
 #ifdef DEBUG
                     if (!is_act_legal(ar_state[pl].p_hand, &table, &c))
                     {
@@ -330,13 +325,13 @@ int main(int argc, char *argv[])
         if (progress >= progress_limit)
         {
             time_t c_time = time(NULL);
-            double delta_t;
+            double dlt_ti;
             if (show_progress)
             {
-                delta_t = difftime(c_time, p_time);
+                dlt_ti = difftime(c_time, p_time);
                 printf("PROGRESS: %5.1f%%  delta_t: %5lds  win ratio (team0/team1): %5.2f  ",
                        progress,
-                       (long)delta_t,
+                       (long)dlt_ti,
                        (float)(scores[0] - last_scores[0]) / (scores[1] - last_scores[1]));
                 last_scores[0] = scores[0];
                 last_scores[1] = scores[1];
@@ -347,10 +342,10 @@ int main(int argc, char *argv[])
             }
             memset(trained, 0, sizeof(trained));
 
-            delta_t = difftime(c_time, ls_time);
-            if (training && auto_save && (delta_t >= auto_save_interval) && !(progress >= 90))
+            dlt_ti = difftime(c_time, ls_time);
+            if (training && auto_save && (dlt_ti >= auto_save_interval) && !(progress >= 90))
             {
-                int save_err = agent_RL_models_save(&rl_models, models_filepath);
+                int save_err = RL_Q_models_save(&rl_models, models_filepath);
                 ls_time = c_time;
                 if (!save_err && show_progress)
                     printf("auto_save  ");
@@ -378,7 +373,7 @@ int main(int argc, char *argv[])
         train_RL_model(&rl_models.rl_trumpleads, 0, &train_param);
         train_RL_model(&rl_models.rl_leader, 0, &train_param);
         puts("done.");
-        int save_err = agent_RL_models_save(&rl_models, models_filepath);
+        int save_err = RL_Q_models_save(&rl_models, models_filepath);
         if (!save_err)
             puts("Final save: Models have been saved.");
     }
@@ -388,7 +383,7 @@ int main(int argc, char *argv[])
     
     deck_destruct(&deck);
 
-    agent_RL_models_destruct(&rl_models);
+    RL_Q_models_destruct(&rl_models);
 
     time_t main_end_time = time(NULL);
     printf("\nProgram ended at %s\n", ctime(&main_end_time));

@@ -6,8 +6,8 @@ BINPATH = ./bin
 OBJPATH = ./obj
 LIBPATH = ./lib
 
-EXT_INC_FLAGS= -I${HOME}/include/ann -I${HOME}/include/lin_alg
-EXT_LIB_FLAGS= -L/usr/lib/x86_64-linux-gnu -L${HOME}/lib
+EXT_INC_FLAGS= -I${HOME}/include/ann -I${HOME}/include/lin_alg -I{HOME}/include
+EXT_LIB_FLAGS= -L/usr/lib/x86_64-linux-gnu -L${HOME}/lib ${HOME}/lib/pcg.o ${HOME}/lib/log.o
 
 RLS_LIB = $(PRJNAME)
 DBG_LIB = $(PRJNAME)_dbg
@@ -16,7 +16,7 @@ CC = gcc
 LD = gcc
 AR = ar
 
-COM_CFLAGS = -std=c11 -Wall -Wextra -I$(INCPATH) $(EXT_INC_FLAGS) -DFLT32=32
+COM_CFLAGS = -std=c11 -Wall -Wextra -I$(INCPATH) $(EXT_INC_FLAGS) -DFLD_FLT32 -DIND_INT64
 OPT_CFLAGS = -flto -O3
 
 MKL_LD_LIBS = -lmkl_rt -lm

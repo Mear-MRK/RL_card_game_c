@@ -16,7 +16,7 @@ typedef enum suit_enum
     Club,
     Diamond,
     UNKNOWN_SUT
-} suit_t;
+} suit;
 
 typedef enum rank_enum
 {
@@ -35,40 +35,40 @@ typedef enum rank_enum
     King,
     Ace,
     UNKNOWN_RNK
-} rank_t;
+} rank;
 
-typedef int8_t cid_t;
+typedef int8_t cid;
 
 #define NON_CID -14
 
 extern const char RNK_CHR[];
 extern const char SUT_CHR[];
 
-typedef struct card_struct
+typedef struct card
 {
-    suit_t sut;
-    rank_t rnk;
-    cid_t cid;
-} card_t;
+    suit sut;
+    rank rnk;
+    cid cid;
+} card;
 
-#define NON_CARD ((card_t){.sut = NON_SUT, .rnk = NON_RNK, .cid = NON_CID})
+#define NON_CARD ((const card){.sut = NON_SUT, .rnk = NON_RNK, .cid = NON_CID})
 
-bool is_suit_valid(suit_t s);
-bool is_rank_valid(rank_t r);
-bool is_cid_valid(cid_t id);
-bool card_is_valid(const card_t *);
+bool is_suit_valid(suit s);
+bool is_rank_valid(rank r);
+bool is_cid_valid(cid id);
+bool card_is_valid(const card *);
 
-bool card_is_equal(const card_t *, const card_t *);
-bool card_is_none(const card_t *);
+bool card_is_equal(const card *, const card *);
+bool card_is_none(const card *);
 
-card_t *card_from_cid(card_t* card, cid_t id);
-card_t *card_from_sut_rnk(card_t* card, suit_t s, rank_t r);
+card *card_from_cid(card* card, cid id);
+card *card_from_sut_rnk(card* card, suit s, rank r);
 
-char *card_to_str(const card_t *card, char *c_str);
-card_t card_from_str(const char *c_str);
+char *card_to_str(const card *card, char *c_str);
+card card_from_str(const char *c_str);
 
-suit_t suit_from_str(const char *sut_str);
-rank_t rank_from_str(const char *rnk_str);
+suit suit_from_str(const char *sut_str);
+rank rank_from_str(const char *rnk_str);
 
 
 #endif /* CARD_H_ */

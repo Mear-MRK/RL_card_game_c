@@ -7,49 +7,50 @@
 
 #include "game.h"
 
-typedef struct ag_inter_intern_struct
+typedef struct ag_inter_private
 {
     int round_score;
     int game_score;
-} ag_inter_intern;
+} ag_inter_private;
 
-static agent_t *constructor(agent_t *agent, const void *param)
+static agent *constructor(agent *agent, const void *param)
 {
     assert(agent);
-    agent->intern = calloc(1, sizeof(ag_inter_intern));
-    assert(agent->intern);
+    agent->private = calloc(1, sizeof(ag_inter_private));
+    assert(agent->private);
     return agent;
 }
 
-static void destructor(agent_t *agent)
+static void destructor(agent *agent)
 {
-    free(agent->intern);
-    agent->intern = NULL;
-    agent->player_id = -1;
+    assert(agent);
+    free(agent->private);
+    agent->private = NULL;
+    agent->ply_id = -1;
 }
 
-static void init_episode(agent_t *agent, const void *param)
+static void init_episode(agent *agent, const void *param)
 {
-    ((ag_inter_intern *)agent->intern)->game_score = 0;
+    ((ag_inter_private *)agent->private)->game_score = 0;
 }
 
-static void init_round(agent_t *agent, const void *param)
+static void init_round(agent *agent, const void *param)
 {
-    ((ag_inter_intern *)agent->intern)->round_score = 0;
+    ((ag_inter_private *)agent->private)->round_score = 0;
 }
 
-static suit_t call_trump(agent_t *agent)
+static suit call_trump(agent *agent)
 {
     char hand_str[128];
     hand_to_str(agent->state->p_hand, hand_str);
-    printf("Player %d, your init hand:\n%s\n", agent->player_id, hand_str);
+    printf("Player %d, your init hand:\n%s\n", agent->ply_id, hand_str);
     char trump_str[16];
-    printf("Player %d, call the trump: ", agent->player_id);
+    printf("Player %d, call the trump: ", agent->ply_id);
     fgets(trump_str, 16, stdin);
     return suit_from_str(trump_str);
 }
 
-static char *table_show_str(const table_t *table, char *show_str, int player_id)
+static char *table_show_str(const table *table, char *show_str, int player_id)
 {
     assert(table);
     assert(show_str);
@@ -70,22 +71,22 @@ static char *table_show_str(const table_t *table, char *show_str, int player_id)
     return show_str;
 }
 
-static card_t act(agent_t *agent)
+static card act(agent *agent)
 {
     assert(agent);
     char tbl_str[64];
-    table_show_str(agent->state->p_table, tbl_str, agent->player_id);
+    table_show_str(agent->state->p_table, tbl_str, agent->ply_id);
     char hand_str[128];
     hand_to_str(agent->state->p_hand, hand_str);
     printf("Trump %c Led suit %c ", SUT_CHR[*agent->state->p_trump], SUT_CHR[agent->state->p_table->led]);
-    printf("Your round team score %d\n", ((ag_inter_intern *)agent->intern)->round_score);
-    printf("Player %d, your hand:\n%s\n", agent->player_id, hand_str);
-    printf("Player %d, table:\n%s\n", agent->player_id, tbl_str);
+    printf("Your round team score %d\n", ((ag_inter_private *)agent->private)->round_score);
+    printf("Player %d, your hand:\n%s\n", agent->ply_id, hand_str);
+    printf("Player %d, table:\n%s\n", agent->ply_id, tbl_str);
     char card_str[16];
-    card_t c = NON_CARD;
+    card c = NON_CARD;
     while (!is_act_legal(agent->state->p_hand, agent->state->p_table, &c))
     {
-        printf("Player %d, which card you play? ", agent->player_id);
+        printf("Player %d, which card you play? ", agent->ply_id);
         fgets(card_str, 16, stdin);
         c = card_from_str(card_str);
     }
@@ -93,35 +94,35 @@ static card_t act(agent_t *agent)
     return c;
 }
 
-static void trick_gain(agent_t *agent, float reward)
+static void trick_gain(agent *agent, float reward)
 {
     char tbl_str[64];
-    table_show_str(agent->state->p_table, tbl_str, agent->player_id);
-    printf("Player %d, end table:\n%s\n", agent->player_id, tbl_str);
+    table_show_str(agent->state->p_table, tbl_str, agent->ply_id);
+    printf("Player %d, end table:\n%s\n", agent->ply_id, tbl_str);
 
     if (reward)
     {
-        ((ag_inter_intern *)(agent->intern))->round_score++;
-        printf("Player %d, your team took the trick!\n", agent->player_id);
+        ((ag_inter_private *)(agent->private))->round_score++;
+        printf("Player %d, your team took the trick!\n", agent->ply_id);
     }
     else
     {
-        printf("Player %d, your team lost the trick!\n", agent->player_id);
+        printf("Player %d, your team lost the trick!\n", agent->ply_id);
     }
 }
 
-static void round_gain(agent_t *agent, float reward)
+static void round_gain(agent *agent, float reward)
 {
     char tbl_str[64];
-    ag_inter_intern *intern = (ag_inter_intern *)(agent->intern);
-    assert(intern->round_score == (int)reward);
-    printf("Player %d, your team score at the end of this round: %g.\n", agent->player_id, reward);
-    if (intern->round_score > N_RNK / 2)
-        intern->game_score++;
+    ag_inter_private *private = (ag_inter_private *)(agent->private);
+    assert(private->round_score == (int)reward);
+    printf("Player %d, your team score at the end of this round: %g.\n", agent->ply_id, reward);
+    if (private->round_score > N_RNK / 2)
+        private->game_score++;
 }
 
 const agent_class agent_cls_Interactive = 
-{.uniq_id = 2,
+{.cls_id = 2,
 .name = "INTERACTIVE",
 .construct = constructor, .destruct = destructor, 
 .init_episode = init_episode, .init_round = init_round, 

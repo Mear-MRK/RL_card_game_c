@@ -1,4 +1,4 @@
-# Card Game RL Agent Training Project
+# RL Agent Training for Card Game
 
 ## Overview
 
